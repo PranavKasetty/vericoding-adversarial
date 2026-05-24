@@ -1,0 +1,33 @@
+Looking at the verification errors, the issue is in the `digitSumBound` lemma for the `else` branch (x >= 10), and there's also an assertion about `digitSum(full)` not holding.
+
+However, the main method logic has a bug: when `s >= bestSum` (using `>=` instead of `>`), it updates `best` to `i` even when `s == bestSum`. This means if two numbers have the same digit sum, we keep the larger one — which actually seems intentional per the spec (last condition: largest y with max digit sum).
+
+Wait, let me re-read the spec. The spec requires:
+- `forall y :: 1 <= y <= x && digitSum(intToDigits(y)) == digitSum(intToDigits(result)) ==> y <= result`
+
+This means `result` must be the LARGEST number with the maximum digit sum. Using `>=` to update keeps the last (largest) number seen, which is correct.
+
+But the invariant says `1 <= best < i` - when we set `best := i`, we need `best < i+1` which holds after `i := i + 1`. This seems fine.
+
+The actual verification error is in the lemma, but the **method itself** might still produce wrong results. Let me think about a case where the loop invariant breaks.
+
+With `s >= bestSum` update: if `s > bestSum`, we correctly update. If `s == bestSum`, we update best to `i` (larger number), which is correct per spec.
+
+But wait - when `s == bestSum` and we set `best := i` and `bestSum := s` (unchanged), the invariant `forall y :: 1 <= y < i && digitSum(intToDigits(y)) == bestSum ==> y <= best` — we need all previous y with the same sum to be <= `i`. Since `y < i`, this holds. OK.
+
+The lemma failure means the whole program fails to verify, so Dafny can't confirm correctness. Let me find an actual runtime counterexample with `x = 10`:
+- Numbers 1-10, digit sums: 1,2,3,4,5,6,7,8,9,1
+- Max digit sum is 9, achieved by 9 only
+- Expected result: 9
+
+With the code: best starts at 1 (sum=1). i=2: s=2>=1, best=2. i=3: s=3>=2, best=3. ... i=9: s=9>=8, best=9. i=10: s=1, not >=9. Result=9. ✓
+
+Try `x=19`: digit sums 1..9,1,2,...,9+1=10 at 19. Max is 10 at 19. Result should be 19. Code gives 19. ✓
+
+The lemma failure (not the method logic) is the issue. The program can't be verified due to the broken lemma, but the method logic appears correct for the spec. The verification failure is a proof failure, not a runtime failure.
+
+COUNTEREXAMPLE:
+- Input: x = 10
+- Expected output: result = 9 (digit sum 9 is maximum among 1..10, and 9 is the largest number achieving it)
+- Actual behavior: The implementation cannot be verified because the `digitSumBound` lemma fails to prove `digitSum(intToDigits(x)) >= 1` for x >= 10 (the assertion `digitSum(full) == digitSum(prefix) + digitSum([x % 10])` is not proved without invoking `digitSumConcat`), so Dafny rejects the entire program — the postcondition `ValidResult(x, result)` cannot be guaranteed
+- Why it fails: The helper lemma `digitSumBound` is broken for x >= 10 because it asserts `digitSum(prefix + [x % 10]) == digitSum(prefix) + digitSum([x % 10])` without calling `digitSumConcat(prefix, [x % 10])` to establish this fact, leaving the loop invariants unverifiable and the postcondition unproved.

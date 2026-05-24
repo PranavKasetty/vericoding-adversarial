@@ -1,0 +1,7 @@
+task_id,condition,trial,passed,iterations_used
+DA0000,A,1,True,3
+DA0000,B,1,False,5
+DA0001,A,1,True,1
+DA0001,B,1,True,1
+DA0002,A,1,True,1
+DA0002,B,1,True,1

@@ -1,0 +1,21 @@
+The verification error is in the `divMonotone` lemma, specifically in the `calc` block. Let me trace through the logic:
+
+The lemma tries to prove by contradiction: if `qa > qb` (where `qa = a/n`, `qb = b/n`), then we'd have `a >= qa*n > qb*n > b`.
+
+The step `qb * n > b` is wrong. We know `qb = b/n`, so `qb * n <= b` (integer division), not `qb * n > b`.
+
+For a concrete counterexample to the calc step:
+
+- Let `a = 3`, `b = 5`, `n = 3`
+- `qa = 3/3 = 1`, `qb = 5/3 = 1`
+- Since `qa == qb`, the `if qa > qb` branch is not taken, so the lemma itself holds here.
+
+The error is in the calc proof attempt. Let me find values where `qa > qb` to trigger the bad step. Actually, if `a <= b`, then `qa > qb` is impossible (that's what the lemma proves), but the calc proof is trying to show this leads to contradiction. The step `qb * n > b` is wrong because `qb = b/n` means `qb * n <= b`.
+
+Example: `a=2, b=5, n=3`: `qa=0, qb=1`. If hypothetically `qa > qb`, we'd need `0 > 1` which is false. The calc tries: `a >= qa*n > qb*n > b` — the last step `qb*n > b` would be `1*3 > 5` which is `3 > 5`, FALSE.
+
+COUNTEREXAMPLE:
+- Input: `a = 2, b = 5, n = 3` for the `divMonotone` lemma
+- Expected output: The lemma should verify that `a/n <= b/n` (i.e., `2/3 <= 5/3`, i.e., `0 <= 1`)
+- Actual behavior: Dafny cannot prove the calc step `qb * n > b` — with `qb = 1` and `b = 5`, this requires `3 > 5`, which is false; the proof strategy is mathematically invalid
+- Why it fails: The calc step attempts to conclude `qb * n > b`, but integer division gives `qb = b/n` which means `qb * n <= b` always, making the step unprovable and the contradiction argument broken; this is a bug in the lemma's proof strategy, not the lemma statement itself, but Dafny rejects the file causing the overall `solve` method to lack its needed helper.

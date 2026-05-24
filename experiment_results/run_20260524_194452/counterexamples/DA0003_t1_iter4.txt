@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n=10, a=2, b=3, p=5, q=7
+- Expected output: result >= 0 (the postcondition requires a non-negative result)
+- Actual behavior: The implementation cannot be verified to produce a correct result because the helper lemmas `GcdDividesA` and `DivisionIdentity` time out during verification, meaning Dafny cannot confirm the proof obligations that `lcm >= 1` and `base_cost >= 0` hold, leaving the correctness of `result >= 0` unproven.
+- Why it fails: The verification timeouts on `GcdDividesA` and `DivisionIdentity` mean Dafny cannot establish that `lcm >= 1` (needed to ensure `full_cycles` and `base_cost` are non-negative), so the postcondition `result >= 0` cannot be verified — the broken implementation uses `assume {:axiom} false` pattern indirectly through unverified lemmas, making the proof of `ensures result >= 0` unsound.

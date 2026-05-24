@@ -1,0 +1,19 @@
+Looking at the verification errors, the main issues are in the helper functions (gcd can be called with b=0 when a==b, causing b-a=0), but let me focus on what the `solve` method actually computes and whether it satisfies the postconditions.
+
+The implementation computes `numerator = w/gcd(w, w+b)` and `denominator = (w+b)/gcd(w, w+b)`. Let me check if this can violate `ValidFraction` which requires `numerator <= denominator`.
+
+Actually, the core verification errors are about the `gcd` function when `a == b`, since `gcd(a, b-a)` would call `gcd(a, 0)` which violates `b > 0`.
+
+For a concrete counterexample with actual inputs: Let's try `t=1, w=2, b=2`.
+- `num = w = 2`, `den = w+b = 4`
+- `g = gcd(2, 4) = 2`
+- `numerator = 2/2 = 1`, `denominator = 4/2 = 2`
+
+This seems fine. But what about `t=1, w=3, b=3`?
+- `gcd(3, 6)`: a=3, b=6, a<=b so `gcd(3, 3)`, then a<=b so `gcd(3, 0)` — **division by zero / precondition violation** since b must be > 0.
+
+COUNTEREXAMPLE:
+- Input: `t=1, w=3, b=3`
+- Expected output: A valid irreducible fraction (numerator=1, denominator=2 would be correct for w/(w+b) = 3/6 = 1/2)
+- Actual behavior: The `gcd` function crashes/fails verification because computing `gcd(3, 6)` → `gcd(3, 3)` → `gcd(3, 0)`, violating the precondition `b > 0` of the `gcd` function, since when `a == b`, the recursive call `gcd(a, b-a)` passes `b-a = 0` as the second argument
+- Why it fails: The `gcd` function's precondition requires `b > 0`, but when `a == b` (e.g., a=3, b=3), the branch `a <= b` triggers `gcd(a, b-a) = gcd(3, 0)`, passing 0 as the second argument and violating the `b > 0` precondition, causing the verification error shown at line 25.

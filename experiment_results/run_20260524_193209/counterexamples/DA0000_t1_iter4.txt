@@ -1,0 +1,31 @@
+Looking at the verification errors, the issue is in the `digitSumBound` lemma for the `else` branch (x >= 10). The lemma fails to prove `digitSum(intToDigits(x)) >= 1`.
+
+But the actual method implementation has a logic bug: when `s >= bestSum`, it updates `best := i` even when `s == bestSum`. This means it keeps replacing `best` with a larger number when there's a tie, which is correct for finding the largest number with max digit sum. Wait, let me re-examine.
+
+The spec requires: `forall y :: 1 <= y <= x && digitSum(intToDigits(y)) == digitSum(intToDigits(result)) ==> y <= result`
+
+This means `result` must be the LARGEST number with the maximum digit sum (all numbers with the same max digit sum must be ≤ result).
+
+The condition `if s >= bestSum` updates best to `i` when `s == bestSum` (tie), keeping the largest. This seems correct.
+
+But let me check: when `s > bestSum` but we update `best := i` with a strictly larger sum, we also need the invariant `forall y :: 1 <= y < i && digitSum(intToDigits(y)) == bestSum ==> y <= best` to hold. After updating `bestSum := s`, old values with the old bestSum satisfy the condition vacuously (since their sum ≠ new bestSum). So the invariant should hold.
+
+The real issue: The verification error in the helper lemma might cause the loop invariant about `digitSum(intToDigits(best)) == bestSum` to not be proved if the helper lemma is needed. However, the method itself - let me trace through x=1.
+
+Actually, the verification error is in the helper lemma, but the method code has 8 verified and 2 errors only in the lemma. The method itself might still have issues due to the broken lemma.
+
+Let me find a concrete input where the implementation gives wrong output. Consider x=19: digit sums are 1→1, 2→2, ..., 9→9, 10→1, 11→2, ..., 19→10. The max is 19 with sum 10. The implementation should return 19.
+
+Consider x=10: digit sums: 1→1,...,9→9, 10→1. Max is 9 with sum 9. The implementation returns 9. The spec requires the largest with max digit sum, which is 9. ✓
+
+Consider x=29: numbers with sum 11: 29 (2+9=11). Max digit sum is 11 at y=29. ✓
+
+Consider x=2: numbers 1→1, 2→2. Max sum is 2 at y=2. Returns 2. ✓
+
+The lemma failure for x≥10 means `digitSumBound` isn't proven, which could affect the loop invariant `forall y :: 1 <= y < i ==> digitSum(intToDigits(y)) <= bestSum` since it requires knowing digit sums are valid. With x=10, i reaches 11, and the invariant needs digitSumBound(10) which fails.
+
+COUNTEREXAMPLE:
+- Input: x = 10
+- Expected output: result = 9 (digit sum 9 is maximum; 9 is the largest number with that sum in [1,10])
+- Actual behavior: The implementation likely returns 9, but Dafny cannot verify it due to the broken `digitSumBound` lemma for x≥10 (specifically x=10 falls into the else branch where the lemma fails to prove `digitSum(intToDigits(10)) >= 1`), meaning the loop invariant `forall y :: 1 <= y < i ==> digitSum(intToDigits(y)) <= bestSum` cannot be established for i > 10, potentially allowing an incorrect result to be returned without the postcondition being verified
+- Why it fails: The `digitSumBound` lemma fails for x=10 (the else branch with `x >= 10`) because `digitSum(full) == digitSum(prefix) + digitSum([x % 10])` is not proven without calling `digitSumConcat`, causing the postcondition `digitSum(intToDigits(x)) >= 1` to be unverified, which breaks the loop invariant needed to ensure `ValidResult` holds.

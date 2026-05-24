@@ -1,0 +1,25 @@
+COUNTEREXAMPLE:
+- Input: n = 2, t = 1
+- Expected output: result >= 1 (from `CorrectForEdgeCases`: `t >= 1 && n > 1 ==> result >= 1`)
+- Actual behavior: result = 1 (the implementation returns `t = 1` when `t < total`)
+- Why it fails: Actually for this specific input the method returns 1, which is correct. Let me reconsider.
+
+The real issue is the verification error in the helper functions, but looking at the method itself:
+
+COUNTEREXAMPLE:
+- Input: n = 3, t = 2
+- Expected output: result must satisfy `result >= 0 && result <= TotalGlasses(3)` (i.e., result <= 6) AND `t >= 1 && n > 1 ==> result >= 1`
+- Actual behavior: result = 2 (since t=2 < total=6, the implementation returns `result := t = 2`)
+- Why it fails: The `CountFilledHelper` function uses `decreases n * (n + 1) / 2 - acc` but when `pos > row` triggers a recursive call with the same `acc` value (not incremented), while `acc` could also be 0 or negative relative to the bound, causing Dafny to reject the termination proof. More critically for a runtime counterexample: with n=2, t=3, total=3, the implementation returns `result = total = 3`, but with n=2, t=4 (invalid since t<=10000 is fine), it would return 3. The actual postcondition violation is: for **n=1, t=5**, the method correctly returns 1, but the `CountFilled` postcondition `CountFilled(n,t) <= n*(n+1)/2` cannot be proved because `CountFilledHelper` with t=5 and total=1 would try to count 5 glasses but the bound is 1, meaning `acc` can exceed `n*(n+1)/2`.
+
+COUNTEREXAMPLE:
+- Input: n = 1, t = 5
+- Expected output: result = 1 (spec requires `n == 1 && t >= 1 ==> result == 1`)
+- Actual behavior: result = 1 (the method itself is fine here)
+- Why it fails: The verification error occurs in `CountFilled(1, 5)` which calls `CountFilledHelper(1, 5, 1, 1, 0)` — this function increments `acc` up to `t=5`, but the postcondition requires the result ≤ `1*(1+1)/2 = 1`, so `acc` reaches 1 (when pos=2 > row=1, moves to row=2 > n=1, returns acc=1). Wait — actually it returns 1 here. The termination issue is `decreases n*(n+1)/2 - acc` which equals `1 - 0 = 1` initially, but when pos > row causes a recursive call without incrementing acc, the measure doesn't decrease.
+
+COUNTEREXAMPLE:
+- Input: n = 2, t = 3
+- Expected output: result = 3 (ValidResult: 0 ≤ result ≤ 3; CorrectForEdgeCases: result ≥ 1)
+- Actual behavior: result = 3 (t >= total, so result = total = 3)
+- Why it fails: The broken `CountFilledHelper` decreases clause `n*(n+1)/2 - acc` does not decrease when `pos > row` triggers a row-advance recursive call (acc stays the same, so the measure is unchanged), meaning Dafny cannot verify termination, causing the overall verification to fail even though the method body happens to return a correct value for this input.

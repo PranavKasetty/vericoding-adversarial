@@ -1,0 +1,17 @@
+COUNTEREXAMPLE:
+- Input: `stdin_input = "1\n"`
+- Expected output: `"BitAryo"` (since n=1, |lines|>=2 would be false... actually let me trace: splitLines("1\n") — findNewline finds '\n' at index 1, so returns ["1"] + splitLines("") = ["1"]. So |lines|=1, n=1, not 3, not 2, but |lines| >= 2 is false, so result = "BitLGM")
+- Actually the verification error is about `s[i+1..]` when `i == |s|` — but findNewline returns `i == |s|` only when no newline is found, and in that case the code takes the `if i == |s|` branch returning `[s]`, not the `else` branch. The error is that Dafny cannot verify `i+1 <= |s|` in the else branch.
+
+Let me give the concrete triggering case:
+
+- Input: `stdin_input = "a"` (no newline, length 1)
+- Expected output: `"BitLGM"` per `GameResult` (lines = ["a"], n = parseInt("a") = 0, not 3, not 2, |lines| < 2, so "BitLGM")
+- Actual behavior: The verification error occurs in `splitLines` — when `s = "a"`, `findNewline` returns `i = 1 = |s|`, so the code correctly takes branch `[s]`. But Dafny's verifier cannot prove that in the `else` branch of splitLines (when `i != |s|`), `i+1 <= |s|` holds, because `findNewline` could theoretically return `|s|` and still reach the else branch from Dafny's perspective without a tight postcondition. The missing postcondition on `findNewline` (that it returns a value `<= |s|` and `< |s|` when the result `!= |s|`) means Dafny cannot rule out `i = |s|` in the else branch, making `s[i+1..]` potentially out of bounds.
+- Why it fails: The `findNewline` function lacks a postcondition guaranteeing its return value is strictly less than `|s|` when it finds a newline character, so Dafny cannot verify that `i+1 <= |s|` in the else branch of `splitLines`, triggering the "upper bound below lower bound or above length of sequence" error for any non-empty input string.
+
+COUNTEREXAMPLE:
+- Input: `stdin_input = "2\n0 0\n"`
+- Expected output: `"BitAryo"` (n=2, values=[0,0], sorted=[0,0], goldenRatioRelation: diff=0, k=0, floorKPhi=0, a=0, so true → "BitAryo")
+- Actual behavior: Verification failure — the program does not compile/verify due to the `splitLines` index-out-of-bounds error; at runtime with `s = "0 0\n"`, `findNewline` returns index 3 (< |s|=4), so `s[4..]` = `""` which is valid, but Dafny cannot statically verify this bound
+- Why it fails: The `findNewline` helper function has no postcondition stating `result <= |s|` or that `result < |s|` when `s[result] == '\n'`, so Dafny cannot verify `i < |s|` (i.e., `i+1 <= |s|`) in `splitLines`'s else branch, violating the sequence-slicing precondition `i+1 <= |s|`.

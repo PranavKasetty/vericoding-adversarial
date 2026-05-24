@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: t=1, w=2, b=2
+- Expected output: numerator=1, denominator=2 (the irreducible fraction 2/4 = 1/2)
+- Actual behavior: The implementation computes num=2, den=4, g=gcd(2,4)=2, numerator=1, denominator=2. However, the `ModAdd` lemma times out during verification, meaning Dafny cannot verify that `b % g == 0` follows from `(b-a) % g == 0` and `a % g == 0`. This causes the entire `GcdDivides` lemma to be unverified, which means the assertion `gcd(numerator, denominator) == 1` in `solve` is not provable, so the postcondition `IsIrreducibleFraction(numerator, denominator)` cannot be verified.
+- Why it fails: The `ModAdd` lemma has an empty body and Dafny's arithmetic solver times out trying to prove `(x + y) % g == 0` from `x % g == 0 && y % g == 0` within the 30-second limit. Since `GcdDivides` depends on `ModAdd`, the chain of reasoning needed to prove `gcd(numerator, denominator) == 1` (satisfying `IsIrreducibleFraction`) breaks down — the postcondition `ensures IsIrreducibleFraction(numerator, denominator)` cannot be verified for inputs like w=2, b=2 (or any w, b where gcd(w, w+b) > 1).

@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `stdin_input = "2 2\n0 0\n0 0\n"` (a valid 2x2 matrix of all zeros)
+- Expected output: According to the spec, since `ParseInput` always returns `(2, 2, [[0, 0], [0, 0]])` and `ApplyGreedyAlgorithm(2, 2, [[0,0],[0,0]])` produces `B = [[0,0],[0,0]]` (all zeros) which equals `A`, the result should NOT be `"-1\n"` — it should be a valid operation sequence like `"0\n"` satisfying `ValidOperationSequence` and the postcondition `B == A && ops == expected_ops`.
+- Actual behavior: The implementation returns `"-1\n"` in both branches of the if-else (even when `B == A`), and furthermore the code doesn't even compile due to the unresolved identifier `GreedyStep` referenced in `ApplyGreedyAlgorithm`.
+- Why it fails: The `GreedyStep` function is called in `ApplyGreedyAlgorithm` but never defined, causing a resolution error; additionally, when `B == A` (the greedy algorithm succeeds), the implementation still returns `"-1\n"`, violating the postcondition `result == "-1\n" ==> B != A` (since `B == [[0,0],[0,0]] == A` but result is `"-1\n"`).

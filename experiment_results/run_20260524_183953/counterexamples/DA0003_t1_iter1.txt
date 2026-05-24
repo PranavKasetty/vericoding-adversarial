@@ -1,0 +1,16 @@
+COUNTEREXAMPLE:
+- Input: n=1, a=2, b=3, p=1, q=1
+- Expected output: result >= 0 (any non-negative integer)
+- Actual behavior: Division by zero at `n / lcm_ab` because `lcm_ab = a / gcd(a, b) * b = 2 / gcd(2, 3) * 3 = 2 / 1 * 3 = 6`, so `count_ab = 1 / 6 = 0` — wait, that's fine. Let me reconsider.
+
+Actually the issue is when `lcm_ab = 0`. This happens when `a / gcd(a, b) = 0`, which occurs when `a < gcd(a,b)`. But gcd(a,b) divides a, so gcd(a,b) <= a always. So `a / gcd(a,b) >= 1` when a > 0.
+
+Wait — but integer division truncates. `a / gcd(a, b)` in Dafny is integer division. Since gcd(a,b) divides a exactly, `a / gcd(a,b)` is exact. So lcm_ab = (a/gcd(a,b)) * b >= 1 * 1 = 1. So lcm_ab >= 1 always... 
+
+But Dafny can't *prove* that lcm_ab != 0 without a proof that gcd(a,b) divides a. The verification error is about Dafny being unable to verify it statically, not a runtime failure. To trigger it at runtime with a zero divisor, we'd need lcm_ab = 0, which can't happen with valid inputs. However, the Dafny verifier flags it as unverified.
+
+COUNTEREXAMPLE:
+- Input: n=1, a=1, b=1, p=1, q=1
+- Expected output: result >= 0
+- Actual behavior: The program computes lcm_ab = (1 / gcd(1,1)) * 1 = (1/1)*1 = 1, then count_ab = 1/1 = 1, total = 1+1 = 2, result = 2. No runtime crash here, but Dafny **cannot verify** that `lcm_ab != 0` because it lacks a proof that `gcd(a, b)` divides `a` exactly, meaning `a / gcd(a, b) * b` could theoretically be 0 from the verifier's perspective.
+- Why it fails: Dafny cannot prove that `lcm_ab = a / gcd(a, b) * b` is non-zero without a lemma establishing that `gcd(a, b)` divides `a` (making the integer division exact and ≥ 1), so the verifier reports a possible division by zero at line 33 even though no concrete valid input actually produces `lcm_ab = 0`. The specification's `ValidInput` precondition (a > 0, b > 0) is insufficient for Dafny to automatically discharge this proof obligation.

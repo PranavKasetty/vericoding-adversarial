@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: x = 0 (any integer input)
+- Expected output: result = 1 (rotation of 1, giving image angle 90°, deviation 90°, which is optimal)
+- Actual behavior: The method fails to compile/run at all due to a type error — `ComputeOptimal` is a ghost lemma (its out-parameter `best` is ghost), so `result := ComputeOptimal(x)` is a type error: you cannot assign a ghost value to a non-ghost `result` variable.
+- Why it fails: The Dafny verification error "actual out-parameter is required to be a ghost variable" means the compiled method `solve` cannot call `ComputeOptimal` and assign its return value to the non-ghost `result`, so no valid implementation is produced and the postcondition `ensures IsOptimalRotations(x, result)` is never satisfied for any input.

@@ -1,0 +1,17 @@
+COUNTEREXAMPLE:
+- Input: n=10, a=3, b=6, p=5, q=2
+- Expected output: result >= 0
+- Actual behavior: The implementation computes count_a = 10/3 = 3, count_b = 10/6 = 1, lcm(3,6)=6, count_ab = 10/6 = 1, total = 3*5 + 1*2 = 17, result = 17. This specific case returns 17 >= 0, so the postcondition holds here.
+
+Actually, the issue is a **verification timeout** in `MulModLemma`, not a runtime failure. The verification error means Dafny cannot confirm the lemma is correct, so the entire proof chain is untrustworthy.
+
+COUNTEREXAMPLE:
+- Input: n=6, a=4, b=6, p=3, q=(-5) — but wait, q > 0 is required.
+
+Let me reconsider: the postcondition `result >= 0` could fail if `total < 0` before the clamp. But p > 0, q > 0 means count_a*p + count_b*q >= 0 always. The real issue is the **timeout**.
+
+COUNTEREXAMPLE:
+- Input: n=1, a=2, b=3, p=1, q=1
+- Expected output: result >= 0 (spec requires this)
+- Actual behavior: count_a = 1/2 = 0, count_b = 1/3 = 0, lcm(2,3)=6, count_ab = 1/6 = 0, total = 0*1 + 0*1 = 0, result = 0. Returns 0.
+- Why it fails: The verification failure is not a runtime counterexample but a proof timeout — Dafny cannot verify `MulModLemma` within 30 seconds, meaning the correctness of `GcdDivides` (which calls `MulModLemma`) is unverified. Without a verified proof that `gcd(a,b)` divides `a`, the `LcmPositive` lemma call in `solve` has an unverified dependency, leaving the postcondition `result >= 0` formally unproven despite the implementation appearing to work on concrete inputs.

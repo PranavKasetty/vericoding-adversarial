@@ -1,0 +1,10 @@
+COUNTEREXAMPLE:
+- Input: s = "0 0 0 1\n0 0 0 0\n0 0 0 0\n0 0 0 0\n"
+- Expected output: "YES\n" (since lane 0 has a car at position 3 (the rightmost/incoming position) with no other cars in lane 0, but we need to check: `lanes[0][3] == 1` and `lanes[0][0]==0, lanes[0][1]==0, lanes[0][2]==0` — so the first condition doesn't fire. However, lane 0 has `lanes[0][3]==1`, so `lanes[1][2]==0`, `lanes[2][1]==0`, `lanes[3][0]==0` — no accident. Actually let's use a clearer case.)
+
+Let me use: s = "1 0 0 1\n0 0 0 0\n0 0 0 0\n0 0 0 0\n"
+
+- Input: s = "1 0 0 1\n0 0 0 0\n0 0 0 0\n0 0 0 0\n" (a valid 28-char string with 4 newlines, all chars are '0','1',' ','\n')
+- Expected output: "YES\n" (since `lanes[0][3]==1` and `lanes[0][0]==1`, so `AccidentAtLane(0, lanes)` is true)
+- Actual behavior: The implementation times out during verification, meaning Dafny cannot confirm the postcondition `exists input_lines :: ParseInput(s, input_lines) && (result == "YES\n" <==> AccidentPossible(input_lines))` is satisfied. At runtime the code would return "YES\n", but the verifier cannot prove this is correct because `ParseInput`/`StringContainsFourLinesOfFourIntegers` doesn't actually constrain `input_lines` values to match the string content — it only requires `ValidInputString(s)`. So theoretically an `input_lines` witness exists where `AccidentPossible` is false while result is "YES\n", which would violate the postcondition.
+- Why it fails: The specification's `StringContainsFourLinesOfFourIntegers` predicate doesn't actually link the parsed integers to the string content (it only checks `ValidInputString(s)` and dimensions), so for any valid string, there exists a witness `input_lines` where all values are 0 (no accident), making `AccidentPossible` false. When the implementation returns "YES\n" but a zero-grid witness satisfies `ParseInput`, the postcondition `result == "YES\n" <==> AccidentPossible(input_lines)` would be violated for that witness, causing the verifier to time out trying to reconcile this ambiguity.

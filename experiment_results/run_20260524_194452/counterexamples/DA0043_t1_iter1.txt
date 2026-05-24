@@ -1,0 +1,24 @@
+COUNTEREXAMPLE:
+- Input: k = 3, a = 1, b = 2
+- Expected output: result >= 0 and result == CountDivisiblesInRange(3, 1, 2)
+- Actual behavior: FloorDiv(2, 3) = 0, FloorDiv(0, 3) = 0, so result = 0 - 0 = 0. Actually let me pick a case where result is negative.
+
+Let me recalculate: k=3, a=4, b=5. FloorDiv(5,3)=1, FloorDiv(3,3)=1, result=0. Not negative.
+
+Try k=2, a=3, b=3. FloorDiv(3,2)=1, FloorDiv(2,2)=1, result=0. Not negative.
+
+The issue is that `result >= 0` cannot be proven by the verifier even if it happens to be true for all valid inputs — because the verifier can't automatically prove FloorDiv(b,k) >= FloorDiv(a-1,k). Let me find a case where the implementation actually returns negative:
+
+k=5, a=6, b=8: FloorDiv(8,5)=1, FloorDiv(5,5)=1, result=0.
+k=5, a=3, b=4: FloorDiv(4,5)=0, FloorDiv(2,5)=0, result=0.
+k=3, a=-5, b=-4: FloorDiv(-4,3)=(-4-3+1)/3=(-6)/3=-2, FloorDiv(-6,3)=(-6-3+1)/3=(-8)/3=-3 (integer div in Dafny rounds toward zero... actually Dafny uses Euclidean). In Dafny, (-8)/3 = -3 (floor). So result = -2 - (-3) = 1. Not negative.
+
+k=3, a=-2, b=-1: FloorDiv(-1,3)=(-1-3+1)/3=(-3)/3=-1, FloorDiv(-3,3)=(-3-3+1)/3=(-5)/3=-2 (floor div). result=-1-(-2)=1. Not negative.
+
+The verification fails because Dafny cannot *prove* result >= 0, not because it actually returns negative. The implementation is correct in practice but unprovable without lemmas.
+
+COUNTEREXAMPLE:
+- Input: k = 1, a = -5, b = -3
+- Expected output: result = 3 (and result >= 0), since CountDivisiblesInRange(1,-5,-3) = FloorDiv(-3,1) - FloorDiv(-6,1) = -3 - (-6) = 3
+- Actual behavior: The implementation computes FloorDiv(-3,1) - FloorDiv(-6,1) = (-3-1+1)/1 - (-6-1+1)/1 = -3 - (-6) = 3, which is correct numerically
+- Why it fails: Dafny cannot automatically verify that `FloorDiv(b, k) >= FloorDiv(a-1, k)` always holds (ensuring result >= 0), so the postcondition `result >= 0` cannot be proved — the verifier lacks a proof that the count of divisibles is non-negative, violating the `ensures result >= 0` clause.

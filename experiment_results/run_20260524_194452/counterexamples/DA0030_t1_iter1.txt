@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `input = "1\n5\n3"` (a string with 3 lines where line 0 is "1", line 1 is "5", line 2 is "3")
+- Expected output: The spec requires `result == "Yes"` because `IsValidInput` holds (1 element arrays, ParseInt("1")=1>0) and `GetInitialSum` = 5 >= `GetTargetSum` = 3
+- Actual behavior: The broken implementation fails to compile/verify at all due to parse errors — `predicate SplitLines(s: string): bool { true }` is invalid Dafny syntax (predicates don't declare return type), and the `if ... then` syntax is wrong (Dafny uses `if ... { }` not `if ... then` for statements)
+- Why it fails: The helper declarations in `<vc-helpers>` are syntactically invalid Dafny — a predicate cannot have an explicit `: bool` return type annotation, causing a parse error that prevents the entire file from being verified, violating the postcondition `result == "Yes" || result == "No"` since no result is ever returned.

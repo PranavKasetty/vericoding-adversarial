@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `s = "4\n1111"`
+- Expected output: `"YES\n"` (since digits = [1,1,1,1], we can partition as [1][1][1][1] with each segment summing to 1, so `CanPartitionIntoEqualSumSegments` returns true)
+- Actual behavior: The implementation returns `"NO\n"` because the loop invariant is not maintained correctly — after `found` is set to `true` and the loop breaks with `i` incremented to `i+1`, the invariant requires `found <==> exists k :: 0 <= k < i && ...` but the loop exits without properly establishing the final postcondition linkage to `CanPartitionIntoEqualSumSegments(s)`. Dafny cannot prove the equivalence holds on the return path.
+- Why it fails: The postcondition `result == "YES\n" <==> CanPartitionIntoEqualSumSegments(s)` cannot be verified because the loop invariant's existential quantifier uses `k < i` but after `i` is incremented before `break`, Dafny loses the connection between `found` and the actual witness `k` that satisfies `CanPartitionIntoEqualSumSegments(s)`. Specifically, for input `"4\n1111"` where the answer is YES, the implementation may return "NO\n" due to the broken invariant/logic around the early exit.

@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `stdin_input = "4 1 2 3 4\n"` (a valid input string with n=4, a=1, x=2, b=3, y=4)
+- Expected output: Either `"YES\n"` or `"NO\n"` depending on whether the trains meet
+- Actual behavior: The program fails to compile/verify at all due to 50 resolution/type errors — `parseInput` is undefined, so the entire program cannot be built or executed
+- Why it fails: The implementation references `parseInput` which is never defined anywhere in the file, causing unresolved identifier errors that prevent the `solve` method from satisfying its postconditions (`ensures result == "YES\n" || result == "NO\n"`) since the method body cannot even type-check, let alone return a valid result.

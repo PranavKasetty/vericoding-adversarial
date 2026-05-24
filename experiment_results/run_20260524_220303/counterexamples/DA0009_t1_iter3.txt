@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `"1 1 5\n3\n7\n"` (a string representing n=1, m=1, r=5, S=[3], B=[7])
+- Expected output: The program should not even compile/verify due to a type error
+- Actual behavior: Compilation fails with "wrong number of arguments" error — `ValidIntLine` is declared with 2 parameters `(s: string, n: int)` in the helpers, but the `ValidInput` predicate in the preamble calls it with only 1 argument as `ValidIntLine(lines[1])` and `ValidIntLine(lines[2])`
+- Why it fails: The helper declaration `function ValidIntLine(s: string, n: int): bool` requires exactly 2 arguments, but the specification's `ValidInput` predicate calls it with only 1 argument on lines 8 and 9, causing a resolution error that prevents the entire program from type-checking. This is a direct signature mismatch between the declared helper function and its usage in the preamble.

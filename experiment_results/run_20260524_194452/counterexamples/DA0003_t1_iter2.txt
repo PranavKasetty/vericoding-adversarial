@@ -1,0 +1,8 @@
+COUNTEREXAMPLE:
+- Input: n=1, a=2, b=3, p=1, q=1 (all valid per ValidInput: n>0, a>0, b>0, p>0, q>0)
+- Expected output: result >= 0 (some non-negative integer)
+- Actual behavior: Division by zero at `n / lcm` because lcm = (2*3)/gcd(2,3) = 6/1 = 6, wait — actually let me reconsider. The error is "possible division by zero" on `n / lcm`. lcm = (a*b)/gcd(a,b). If a=1, b=1: lcm = (1*1)/gcd(1,1) = 1/1 = 1, no issue. But Dafny can't verify lcm > 0 statically. The real trigger: Dafny cannot prove `lcm > 0` because it cannot prove `gcd(a,b)` divides `a*b` exactly or that `(a*b)/gcd(a,b) > 0`. Use n=1, a=1, b=1, p=1, q=1: lcm = (1*1)/1 = 1, but Dafny sees a potential division by zero at `n / lcm` because it cannot verify lcm != 0.
+- Input: n=1, a=1, b=1, p=1, q=1
+- Expected output: result >= 0
+- Actual behavior: Dafny cannot verify that `lcm` (computed as `(a*b)/gcd(a,b)`) is non-zero, so the verification fails with a possible division by zero error at `n / lcm`. At runtime with these values, lcm=1, full_cycles=1, remainder=0, base_cost=2, extra_cost=0, result=2, which is ≥ 0 — but Dafny rejects the program statically.
+- Why it fails: The implementation computes `lcm = (a * b) / gcd(a, b)` but never proves `lcm > 0` (or `lcm != 0`), so Dafny cannot rule out division by zero at `n / lcm`. The spec's postcondition `result >= 0` is never reached because verification aborts at this unverified division.

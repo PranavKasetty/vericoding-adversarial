@@ -1,0 +1,26 @@
+Looking at the verification errors, I need to find a concrete input where the implementation fails.
+
+The key issue is with the loop invariant:
+```
+invariant forall y :: 1 <= y < i && digitSum(intToDigits(y)) == bestSum ==> y <= best
+```
+
+This invariant can be violated when we update `best := i` and `bestSum := s`. If a previous number `y < i` also has the same digit sum as `i`, the invariant would require `y <= best = i`, which is true. But if we DON'T update best (because `s <= bestSum`), and some earlier `y < i` has `digitSum(y) == bestSum` but `y > best`, the invariant fails.
+
+Wait, let me think more carefully. The issue is: when `s == bestSum` (equal, not greater), we keep `best` unchanged but `y = i` now has the same sum as `bestSum` and `i > best`, violating `y <= best`.
+
+Let me trace with x = 2:
+- Start: best=1, bestSum=digitSum([1])=1, i=2
+- i=2: s=digitSum([2])=2, s > bestSum (2>1), so best=2, bestSum=2, i=3
+- Loop ends, result=2 ✓
+
+Let me try x = 19:
+- Numbers 1-9 have digit sums 1-9
+- 19 has digit sum 1+9=10, which is the max
+- But what about equal digit sums? Consider: best eventually becomes 9 (sum=9), then at i=18: sum=1+8=9 = bestSum, so we DON'T update best. But now 18 > best=9 and has same sum, violating the invariant `y <= best`.
+
+COUNTEREXAMPLE:
+- Input: x = 18
+- Expected output: result = 18 (digit sum 9, and 18 is the largest number with max digit sum 9 in range 1..18)
+- Actual behavior: The loop sets best=9 (digit sum 9) when i=9. When i=18, digitSum(18)=9=bestSum, so the code does NOT update best (condition is `s > bestSum`, not `s >= bestSum`). Result = 9.
+- Why it fails: The spec requires `forall y :: 1 <= y <= x && digitSum(intToDigits(y)) == digitSum(intToDigits(result)) ==> y <= result`, but y=18 has the same digit sum (9) as result=9, yet 18 > 9, directly violating the last clause of `ValidResult`.

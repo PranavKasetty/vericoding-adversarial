@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n=3, k=1, s="GT."
+- Expected output: "YES" (since G is at position 0, T is at position 1, (1-0)%1==0, and no blocking characters between them)
+- Actual behavior: The program fails to compile/verify due to a parse error on line 164 (a stray semicolon after a closing brace `};` inside the `assert ... by { ... }` block)
+- Why it fails: The implementation has a syntax error — `assert false; }` followed by `};` creates an invalid `rbrace` parse error, meaning the code cannot even be parsed by Dafny, let alone produce any output for valid inputs like "GT." with k=1.

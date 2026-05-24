@@ -36,6 +36,7 @@ import yaml
 SPECS_DIR = Path(__file__).parent / "specs"
 PROMPTS_FILE = Path(__file__).parent / "vericoding" / "src" / "dafny" / "prompts.yaml"
 MODEL = "claude-sonnet-4-6"
+ORACLE_MODEL = "claude-sonnet-4-6"
 MAX_ITERATIONS = 5
 DAFNY_TIMEOUT = 120
 OUTPUT_DIR = Path(__file__).parent / "experiment_results"
@@ -67,6 +68,85 @@ def count_placeholders(code: str) -> int:
     return code.count("<vc-code>") + code.count("<vc-helpers>")
 
 
+def _extract_json_array(text: str, start: int) -> Optional[str]:
+    """Return the balanced [...] substring starting at text[start], or None."""
+    if start >= len(text) or text[start] != "[":
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape:
+            escape = False
+            continue
+        if c == "\\" and in_string:
+            escape = True
+            continue
+        if c == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
+def _parse_json_array(text: str, expected_count: int) -> tuple[Optional[list[str]], str]:
+    """
+    Extract and validate a JSON array from the model's response.
+    Uses balanced-bracket scanning to handle reasoning before/after JSON.
+
+    Returns (replacements_list, error_message). One will be None.
+    """
+    text = text.strip()
+
+    # Strip markdown code fence if present
+    fence_match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    # Fast path: text is already a bare JSON array
+    if text.startswith("["):
+        try:
+            data = json.loads(text)
+            if isinstance(data, list) and len(data) == expected_count:
+                return [str(item) for item in data], ""
+        except json.JSONDecodeError:
+            pass
+
+    # Scan for a JSON array of strings: pattern `[` then whitespace then `"`
+    for m in re.finditer(r'\[\s*"', text):
+        candidate = _extract_json_array(text, m.start())
+        if candidate is None:
+            continue
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, list) and len(data) == expected_count:
+                return [str(item) for item in data], ""
+        except json.JSONDecodeError:
+            continue
+
+    # Last resort: try any `[...]` substring
+    for m in re.finditer(r'\[', text):
+        candidate = _extract_json_array(text, m.start())
+        if candidate is None:
+            continue
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, list) and len(data) == expected_count:
+                return [str(item) for item in data], ""
+        except json.JSONDecodeError:
+            continue
+
+    return None, f"JSON parsing failed: No valid JSON array with {expected_count} elements found"
+
+
 def apply_json_replacements(original_code: str, llm_response: str) -> tuple[str, Optional[str]]:
     """
     Apply JSON array replacements to the original code.
@@ -74,26 +154,7 @@ def apply_json_replacements(original_code: str, llm_response: str) -> tuple[str,
 
     Returns (modified_code, error_message_or_None).
     """
-    # Extract JSON array from response
-    json_match = re.search(r"```json\s*(.*?)\s*```", llm_response, re.DOTALL | re.IGNORECASE)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        json_match = re.search(r"\[.*\]", llm_response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(0)
-        else:
-            return original_code, "JSON parsing failed: No JSON array found in LLM response"
-
-    try:
-        replacements = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        return original_code, f"JSON parsing failed: {e}"
-
-    if not isinstance(replacements, list):
-        return original_code, "JSON parsing failed: Expected JSON array"
-
-    # Find all vc-code and vc-helpers sections using line-based approach
+    # Find all vc-code and vc-helpers sections to know expected count
     lines = original_code.split("\n")
     vc_sections = []
     for i, line in enumerate(lines):
@@ -108,14 +169,16 @@ def apply_json_replacements(original_code: str, llm_response: str) -> tuple[str,
                     vc_sections.append((i, j, "vc-helpers"))
                     break
 
-    # Sort by line number
     vc_sections.sort(key=lambda x: x[0])
+    expected_count = len(vc_sections)
 
-    if len(vc_sections) != len(replacements):
-        return original_code, (
-            f"JSON replacement count mismatch: "
-            f"Expected {len(vc_sections)} replacements, got {len(replacements)}"
-        )
+    # Parse JSON array from response using robust scanner
+    replacements, error = _parse_json_array(llm_response, expected_count)
+    if replacements is None:
+        return original_code, error
+
+    if not isinstance(replacements, list):
+        return original_code, "JSON parsing failed: Expected JSON array"
 
     # Apply replacements in reverse order to preserve line indices
     for section_idx in range(len(vc_sections) - 1, -1, -1):
@@ -211,7 +274,7 @@ Be specific and concrete — use actual numbers/values, not abstract description
 """
     time.sleep(API_DELAY)
     response = _client.messages.create(
-        model=MODEL,
+        model=ORACLE_MODEL,
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -395,7 +458,7 @@ def run_task(
 
 
 def main():
-    global MAX_ITERATIONS, DAFNY_TIMEOUT, MODEL
+    global MAX_ITERATIONS, DAFNY_TIMEOUT, MODEL, ORACLE_MODEL
 
     parser = argparse.ArgumentParser(description="Vericoding CEGIS experiment")
     parser.add_argument("--tasks", nargs="*", help="Specific task IDs (default: all DA0000-DA0049)")
@@ -403,21 +466,23 @@ def main():
     parser.add_argument("--trials", type=int, default=1, help="Number of independent trials")
     parser.add_argument("--max-iter", type=int, default=5)
     parser.add_argument("--model", default=MODEL)
+    parser.add_argument("--oracle-model", default=None, help="Model for adversarial oracle (default: same as --model)")
     parser.add_argument("--timeout", type=int, default=DAFNY_TIMEOUT)
     args = parser.parse_args()
 
     MAX_ITERATIONS = args.max_iter
     DAFNY_TIMEOUT = args.timeout
     MODEL = args.model
+    ORACLE_MODEL = args.oracle_model if args.oracle_model else MODEL
 
     # Determine tasks
     if args.tasks:
         task_ids = args.tasks
     else:
-        # All spec files in specs/
+        # Default: DA0000-DA0049 (the paper's evaluation set)
         task_ids = sorted(
             f.stem.replace("_specs", "")
-            for f in SPECS_DIR.glob("*_specs.dfy")
+            for f in SPECS_DIR.glob("DA00[0-4][0-9]_specs.dfy")
         )
 
     conditions = ["A", "B"] if args.condition == "both" else [args.condition]
@@ -428,6 +493,8 @@ def main():
     print(f"Trials: {args.trials}")
     print(f"Max iterations: {MAX_ITERATIONS}")
     print(f"Model: {MODEL}")
+    if ORACLE_MODEL != MODEL:
+        print(f"Oracle model: {ORACLE_MODEL}")
     print(f"Dafny timeout: {DAFNY_TIMEOUT}s")
     print()
 

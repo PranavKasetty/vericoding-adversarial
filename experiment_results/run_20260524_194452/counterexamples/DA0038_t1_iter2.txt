@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n=3, k=1, s="GT."
+- Expected output: "YES" (since G is at position 0, T is at position 1, final-start=1, 1%1==0, and there are no intermediate positions between 0 and 1, so CanReachTarget is satisfied)
+- Actual behavior: The program fails to compile/verify due to ghost context errors in CheckReachable — the assignment `reached := true` and `return` statements are inside an `if s[pos] in {'G', 'T'}` branch that Dafny treats as a ghost context (because `in` with a set literal can be a spec-only expression in certain contexts), causing resolution errors that prevent the method from running at all.
+- Why it fails: The verification errors (lines 83-87) are compilation-level failures where Dafny rejects assignments to non-ghost variables and return/break statements inside what it considers a ghost context, meaning the implementation cannot even compile, let alone produce the correct "YES" output required by the postcondition `result == "YES" <==> CanReachTarget(s, k)`.

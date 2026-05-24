@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n = 1, k = 0
+- Expected output: result >= 0 (specifically result == 0, since min(0, 0) == 0 and computeInversions(1, 0, 0) == 0)
+- Actual behavior: The loop computes result = 0 correctly, but the postcondition `result >= 0` cannot be proved because Dafny cannot verify the loop invariant establishes `result >= 0` after the loop — specifically, when `iterations = 0`, the loop body never executes, and the invariant `result == sumInversionsFormula(n, i)` holds with `result = 0`, but Dafny fails to automatically conclude `sumInversionsFormula(1, 0) >= 0` satisfies `result >= 0` without additional lemma support connecting the formula to non-negativity.
+- Why it fails: The `result >= 0` postcondition cannot be proved because the implementation lacks a lemma or assertion proving that `sumInversionsFormula(n, iterations) >= 0` for valid inputs — when n=1, k=0, iterations=0, result=0 which is fine, but Dafny's verifier cannot discharge `result >= 0` from `result == sumInversionsFormula(1, 0)` without knowing `sumInversionsFormula` returns non-negative values, violating the `ensures result >= 0` clause.

@@ -1,0 +1,13 @@
+COUNTEREXAMPLE:
+- Input: n=1, a=2, b=3, p=1, q=1 (all positive, satisfying ValidInput)
+- Expected output: result >= 0 (some non-negative integer)
+- Actual behavior: Runtime division by zero error when computing `n / lcm`, because lcm = (2*3)/gcd(2,3) = 6/1 = 6, wait — let me reconsider. Actually the Dafny verifier can't prove lcm != 0 statically. Consider a=1, b=1: lcm = (1*1)/gcd(1,1) = 1/1 = 1, fine. But Dafny cannot verify that `gcd(a,b)` divides `a*b` evenly or that `lcm > 0` in general, so it flags possible division by zero at `n / lcm`.
+
+More precisely, a concrete triggering case: n=6, a=4, b=6, p=1, q=1. Here lcm = (4*6)/gcd(4,6) = 24/2 = 12 > 0, so no actual runtime error. The Dafny **verifier** cannot prove lcm != 0 because it cannot prove gcd(a,b) <= a*b (i.e., that the integer division doesn't produce 0). For example: a=1, b=2, p=1, q=1, n=1 → lcm = (1*2)/gcd(1,2) = 2/1 = 2 > 0. 
+
+A case where lcm actually equals 0 at runtime doesn't exist with positive a,b. But the verifier error is triggered because Dafny cannot statically prove `lcm != 0`. The concrete worst case the verifier worries about: if gcd(a,b) > a*b (which can't happen mathematically but Dafny doesn't prove), lcm could be 0.
+
+- Input: n=1, a=1, b=1, p=1, q=1
+- Expected output: result >= 0
+- Actual behavior: The verifier rejects the program with "possible division by zero" at `n / lcm` because Dafny cannot prove that `(a * b) / gcd(a, b) != 0`; even though mathematically lcm=1 here, Dafny lacks the lemma linking gcd to divisibility.
+- Why it fails: The implementation computes `lcm = (a * b) / gcd(a, b)` but never proves `lcm > 0` (or even `lcm != 0`), so Dafny rejects the subsequent `n / lcm` as a potential division-by-zero, violating the verifier's safety requirement before it can even check `result >= 0`.

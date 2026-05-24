@@ -1,0 +1,24 @@
+The verification error here is a **timeout**, not a logical bug — the implementation's logic appears correct, but Dafny can't verify it within the time limit. However, I need to find a concrete input that exposes a potential logical issue.
+
+Let me trace through the logic carefully to find if there's an actual counterexample.
+
+Let me try: n=2, m=1, k=1, a=1, b=2
+
+- GetEntrance(1, 1, 1) = (1-1)/(1*1) = 0
+- GetEntrance(2, 1, 1) = (2-1)/(1*1) = 1
+- GetFloor(1, 1, 1) = ((1-1) - 0*1*1)/1 = 0
+- GetFloor(2, 1, 1) = ((2-1) - 1*1*1)/1 = 0
+
+Since entrances differ (0 != 1):
+- MinEntranceDistance(0, 1, 2): clockwise = (1-0+2)%2 = 1, counterclockwise = (0-1+2)%2 = 1 → min = 1
+- result = MinTravelTime(0) + 15*1 + MinTravelTime(0) = 0 + 15 + 0 = 15
+
+The implementation would compute the same. This seems fine.
+
+The issue is purely a **timeout** during verification — the SMT solver times out trying to prove the postconditions hold. The implementation logic is correct but Dafny can't verify it in time.
+
+COUNTEREXAMPLE:
+- Input: n=2, m=2, k=2, a=1, b=8
+- Expected output: By spec — GetEntrance(1,2,2)=0, GetEntrance(8,2,2)=(7/4)=1 (different entrances), GetFloor(1,2,2)=0, GetFloor(8,2,2)=((7-4)/2)=1; MinEntranceDistance(0,1,2)=1; result = MinTravelTime(0)+15*1+MinTravelTime(1) = 0+15+1 = 16
+- Actual behavior: The implementation computes result=16 correctly at runtime, but Dafny's verifier **times out** trying to prove the postconditions hold, so it fails to verify
+- Why it fails: The verification timeout occurs because Dafny's SMT solver cannot discharge the proof obligations for the postconditions within 30 seconds — the combination of integer division in `GetEntrance`/`GetFloor` and the conditional `MinTravelTime` logic creates too many case splits for the solver to handle, violating the implicit requirement that the implementation be verifiably correct (not just computationally correct).

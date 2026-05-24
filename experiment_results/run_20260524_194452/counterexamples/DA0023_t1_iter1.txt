@@ -1,0 +1,20 @@
+The verification error is a timeout, not a logical error. The implementation looks logically correct but Dafny's verifier times out trying to prove the postconditions, likely due to the complexity of reasoning about integer division in `GetEntrance` and `GetFloor`.
+
+However, I need to find a concrete input where the implementation produces wrong output. Let me trace through carefully to see if there's actually a logical bug.
+
+Let me check with n=2, m=2, k=2, a=1, b=5:
+- GetEntrance(1, 2, 2) = (1-1)/(2*2) = 0/4 = 0
+- GetEntrance(5, 2, 2) = (5-1)/4 = 4/4 = 1
+- Different entrances, so:
+  - floor_a = GetFloor(1,2,2) = ((1-1) - 0*4)/2 = 0/2 = 0
+  - floor_b = GetFloor(5,2,2) = ((5-1) - 1*4)/2 = 0/2 = 0
+  - entrance_dist = MinEntranceDistance(0, 1, 2) = min(1, 1) = 1
+  - result = MinTravelTime(0) + 15*1 + MinTravelTime(0) = 0 + 15 + 0 = 15
+
+The implementation seems logically correct. The issue is purely a verification timeout. The timeout suggests Dafny can't automatically prove the postconditions hold due to the nonlinear arithmetic involved in division operations.
+
+COUNTEREXAMPLE:
+- Input: n=2, m=2, k=2, a=1, b=5
+- Expected output: result = 15 (MinTravelTime(0) + 15*1 + MinTravelTime(0) = 0 + 15 + 0 = 15)
+- Actual behavior: The implementation computes result = 15, which is numerically correct, but Dafny's verifier **times out** before it can confirm this satisfies the postcondition `result == MinTravelTime(GetFloor(a,m,k)) + 15 * MinEntranceDistance(...) + MinTravelTime(GetFloor(b,m,k))`
+- Why it fails: The verifier cannot automatically discharge the proof obligations involving nonlinear integer arithmetic (division by `m*k` in `GetEntrance`/`GetFloor`), causing a 30-second timeout; this means Dafny cannot confirm even correct inputs satisfy the spec, making the postcondition unverified for all inputs including this one.

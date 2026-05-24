@@ -1,0 +1,23 @@
+The verification error is a timeout, not a logical failure. The implementation logic appears correct, but the verifier times out trying to prove the postconditions. However, I need to find a concrete counterexample where the implementation produces a wrong result.
+
+Let me trace through the logic carefully to find a case where the implementation might be wrong.
+
+The issue is a **timeout** — Dafny can't verify the code within 30 seconds. This means the verifier cannot confirm correctness, but let me check if the implementation is actually logically wrong.
+
+Looking at the `else` branch: the spec requires `result == MinTravelTime(GetFloor(a, m, k)) + 15 * MinEntranceDistance(GetEntrance(a, m, k), GetEntrance(b, m, k), n) + MinTravelTime(GetFloor(b, m, k))`.
+
+The implementation computes `result := MinTravelTime(floor_a) + 15 * entrance_dist + MinTravelTime(floor_b)` where `floor_a = GetFloor(a, m, k)`, `floor_b = GetFloor(b, m, k)`, `entrance_dist = MinEntranceDistance(entrance_a, entrance_b, n)`. This looks correct.
+
+The timeout means the **verifier** fails, not that the implementation is wrong logically. But since the problem asks for a counterexample demonstrating why the implementation "fails to satisfy its specification," and the failure is a verification timeout (which means correctness is unproven), let me try to find an actual logical error.
+
+Wait — the implementation is actually correct logically. The timeout is a verification infrastructure issue. But the question asks me to provide a counterexample. Let me try edge cases for `MinTravelTime`:
+
+With `floors = 3`: stair=15, elevator=13 → returns 13. With `floors = 2`: stair=10, elevator=12 → returns 10.
+
+The implementation seems logically correct. The "failure" is purely the timeout. I'll construct a case that, if the verifier were wrong about the timeout, could expose an issue, but really the issue is that Dafny can't verify it.
+
+COUNTEREXAMPLE:
+- Input: n=2, m=2, k=2, a=1, b=5
+- Expected output: GetEntrance(1,2,2)=(0)/4=0, GetEntrance(5,2,2)=4/4=1, these differ, so result = MinTravelTime(GetFloor(1,2,2)) + 15*MinEntranceDistance(0,1,2) + MinTravelTime(GetFloor(5,2,2)) = MinTravelTime(0) + 15*1 + MinTravelTime(0) = 0 + 15 + 0 = 15
+- Actual behavior: The implementation produces result=15 (logically correct), but **Dafny's verifier times out** and cannot confirm this, meaning the postcondition `result == MinTravelTime(GetFloor(a,m,k)) + 15*MinEntranceDistance(...) + MinTravelTime(GetFloor(b,m,k))` is unverified and thus the implementation is considered unverified/broken.
+- Why it fails: The verifier exceeds the 30-second timeout when trying to prove the postconditions for the `entrance_a != entrance_b` branch, because Dafny cannot automatically unfold and connect the helper lemmas to the postcondition referencing `GetEntrance(a,m,k)` and `GetFloor(a,m,k)` directly — the local variables `floor_a`, `floor_b`, `entrance_dist` are not proven equal to the spec's expressions within the time limit, leaving the functional correctness postcondition unverified.

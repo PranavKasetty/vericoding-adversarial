@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n=2, k=1, s="GT"
+- Expected output: "YES" (CanReachTarget holds: start=0 where s[0]='G', final=1 where s[1]='T', (1-0)%1==0, no intermediate positions to check)
+- Actual behavior: The program fails to compile/parse entirely due to syntax errors — `predicate IsGOrT(c: char): bool` and `predicate IsBlocking(c: char): bool` are invalid Dafny syntax (predicates cannot have an explicit return type declaration of `bool`). The file produces 2 parse errors and no output is produced.
+- Why it fails: The broken implementation uses invalid Dafny syntax `predicate IsGOrT(c: char): bool` — Dafny predicates always return bool implicitly and do not allow an explicit `: bool` return type annotation, causing parse errors that prevent the entire program from running, thus violating the postcondition `result == "YES" <==> CanReachTarget(s, k)` for this input.

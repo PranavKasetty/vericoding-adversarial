@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: s = "AB"
+- Expected output: "NIE" (since 'A' == 'A' is not the issue here — let me reconsider: s[0]='A', s[1]='B', they differ, and ('A','B') is not one of the valid pairs (p/q or b/d), so is_s_palindrome("AB") is false, so result should be "NIE")
+- Actual behavior: The implementation fails to compile due to type errors (the `=>` arrow in `forall k :: 0 <= k < i =>` is parsed as a lambda/function type rather than logical implication, causing a type mismatch). The program cannot run at all.
+- Why it fails: The invariant uses `=>` (which Dafny interprets as producing a function type in this context) instead of `==>` (logical implication), causing a type error where `i` is compared against a function type rather than an integer, violating the basic requirement that the method must return "TAK" or "NIE" per the postconditions.

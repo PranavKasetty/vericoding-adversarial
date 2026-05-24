@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `"1 1 5\n3\n4\n"` (a string representing n=1, m=1, r=5, S=[3], B=[4])
+- Expected output: The program should not even compile/verify due to the duplicate `ValidIntLine` function definition and the wrong-arity calls.
+- Actual behavior: The Dafny verifier rejects the program entirely with resolution errors: (1) `ValidIntLine` is declared twice (once with 2 parameters and once with 1), causing a "Duplicate member name" error; (2) the calls `ValidIntLine(lines[1])` and `ValidIntLine(lines[2])` in `ValidInput` pass only 1 argument but the first declared `ValidIntLine` expects 2 arguments `(s: string, n: int)`, causing "wrong number of arguments" errors.
+- Why it fails: The broken implementation declares two functions with the same name `ValidIntLine` (one taking `(s: string, n: int)` and one taking `(s: string)`), which Dafny forbids as a duplicate member. Consequently, the single-argument calls in `ValidInput` on lines 8–9 fail to resolve against the two-argument signature, violating the basic requirement that the program must compile before any postcondition of `solve` can be checked.

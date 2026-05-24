@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `"1 1 5\n3\n4\n"` (a string with n=1, m=1, r=5, S=[3], B=[4])
+- Expected output: `"6\n"` (since x=min(S)=3, y=max(B)=4, cnt=(5%3)+(5/3)*4=2+4=6, and 6>5 so result=6)
+- Actual behavior: The implementation fails to compile/verify entirely due to 40 unresolved identifier errors — `SplitLinesFunc`, `ValidIntLine`, `SplitIntsFunc`, `MinSeqFunc`, `MaxSeqFunc`, and `IntToStringFunc` are all undefined in the implementation file. The method body cannot execute at all.
+- Why it fails: The implementation references helper functions (`SplitLinesFunc`, `SplitIntsFunc`, `MinSeqFunc`, `MaxSeqFunc`, `IntToStringFunc`, `ValidIntLine`) that are declared in the preamble/spec context but never defined or imported in the implementation file, causing resolution errors that prevent the postcondition `result == IntToStringFunc(ComputeMaxBourles(r, S, B)) + "\n"` from ever being satisfied.

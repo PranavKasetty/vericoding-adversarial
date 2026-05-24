@@ -1,0 +1,21 @@
+The verification error is a timeout, not a logical error. The implementation is actually correct but Dafny can't verify it within the time limit. However, I need to find a concrete counterexample showing the implementation could fail. Since the code uses `assume {:axiom} false` in the spec version... wait, the current broken implementation does NOT have that assume - it has actual code that times out.
+
+The timeout means Dafny couldn't prove correctness, but the implementation logic appears correct. Let me check if there's an actual logical bug by tracing through a specific example.
+
+Let me try n=2, m=2, k=2, a=1, b=5:
+- GetEntrance(1, 2, 2) = (1-1)/(2*2) = 0/4 = 0
+- GetEntrance(5, 2, 2) = (5-1)/(2*2) = 4/4 = 1
+- Different entrances, so:
+- GetFloor(1, 2, 2) = ((1-1) - 0*4)/2 = 0/2 = 0
+- GetFloor(5, 2, 2) = ((5-1) - 1*4)/2 = 0/2 = 0
+- MinEntranceDistance(0, 1, 2) = min((1-0+2)%2, (0-1+2)%2) = min(1, 1) = 1
+- Expected: MinTravelTime(0) + 15*1 + MinTravelTime(0) = 0 + 15 + 0 = 15
+- Implementation gives: MinTravelTime(0) + 15*1 + MinTravelTime(0) = 15 ✓
+
+The implementation logic is correct. The issue is purely a verification timeout. Since the timeout might cause Dafny to leave the postcondition unverified (not that the implementation is wrong), the "counterexample" is about the verification failure, not a runtime failure.
+
+COUNTEREXAMPLE:
+- Input: n=2, m=2, k=2, a=1, b=5
+- Expected output: result = 15 (spec requires: different entrances, so MinTravelTime(GetFloor(1,2,2)) + 15*MinEntranceDistance(0,1,2) + MinTravelTime(GetFloor(5,2,2)) = 0 + 15 + 0 = 15)
+- Actual behavior: The implementation returns 15, which is numerically correct, but Dafny's verifier times out and cannot confirm it satisfies the postconditions — meaning the postcondition `result == MinTravelTime(GetFloor(a,m,k)) + 15 * MinEntranceDistance(...) + MinTravelTime(GetFloor(b,m,k))` is left unverified
+- Why it fails: Dafny cannot within 30 seconds automatically prove that the local variables `entrance_a`, `floor_a`, etc. remain equal to the specification's `GetEntrance(a,m,k)` and `GetFloor(a,m,k)` expressions in the postcondition, causing the verification of the final ensures clause to time out without being discharged.

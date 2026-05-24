@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: t=1, w=2, b=4
+- Expected output: numerator=1, denominator=3 (since w/(w+b) = 2/6, reduced by gcd(2,6)=2 gives 1/3, and gcd(1,3)=1)
+- Actual behavior: The implementation times out during verification — the `ModAdd` and `GcdDivides` lemmas fail to verify within the time limit, so Dafny cannot confirm the postconditions hold. At runtime the code would compute num=2, den=6, g=gcd(2,6)=2, numerator=1, denominator=3, but the final assertion `g == gcd(numerator, denominator) * g` (i.e., `2 == 1 * 2`) relies on `GcdDivides` being proven, which times out.
+- Why it fails: The verification timeouts on `ModAdd` and `GcdDivides` mean Dafny cannot establish that `gcd(numerator, denominator) == 1`, directly violating the postcondition `IsIrreducibleFraction(numerator, denominator)` which requires `gcd(numerator, denominator) == 1`.

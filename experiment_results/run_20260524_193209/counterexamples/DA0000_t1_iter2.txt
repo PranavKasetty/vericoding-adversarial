@@ -1,0 +1,33 @@
+Looking at the verification errors, the issue is in the `digitSumBound` lemma, but let me think about whether the actual `solve` method produces wrong results.
+
+The verification errors are:
+1. In the `else` branch of `digitSumBound`, the assertion `digitSum(full) == digitSum(prefix) + digitSum([x % 10])` might not hold (needs `digitSumConcat` lemma).
+2. The postcondition `digitSum(intToDigits(x)) >= 1` fails for the else case.
+
+But these are lemma failures. The real question is: does the `solve` method itself produce incorrect results?
+
+Looking at the loop invariant more carefully:
+
+The invariant says `forall y :: 1 <= y < i && digitSum(intToDigits(y)) == bestSum ==> y <= best`
+
+But when `s >= bestSum` and we update `best := i; bestSum := s;`, if `s == bestSum` (not strictly greater), we correctly update `best` to `i` (the larger index). However, if `s > bestSum`, then the old numbers with `bestSum` no longer matter since the new `bestSum` is higher.
+
+The loop logic seems actually correct for the spec. The verification error is only in the helper lemma `digitSumBound`, which causes the loop invariant `forall y :: 1 <= y < i ==> digitSum(intToDigits(y)) <= bestSum` to potentially not be provable.
+
+The key issue: when `s >= bestSum` but `s == bestSum`, we update `best` to `i`. But there might be a previous number `j < i` with `digitSum(j) == bestSum == s`, and after updating `best = i`, we lose track that `j <= best` (which is fine since `j < i = best`). Actually that's fine.
+
+Wait - the real bug: when `s > bestSum`, we update `bestSum = s`. But then the invariant `forall y :: 1 <= y < i && digitSum(intToDigits(y)) == bestSum ==> y <= best` — after update, `bestSum = s`, `best = i`. Are there any `y < i` with `digitSum(y) == s`? That would violate the invariant since they'd need to be `<= i = best`. Actually no, `y < i` and `best = i` so `y < i <= best` is fine... wait `y <= best` means `y <= i` which is satisfied since `y < i`.
+
+The actual bug is the lemma verification failure means Dafny can't verify the whole program. Let me find a concrete input where the OUTPUT is wrong.
+
+With `x = 19`: numbers 1-19. Digit sums: 19→10, 18→9, 9→9. Max digit sum is 10 (from 19). Result should be 19. The loop would correctly find `best=19`.
+
+With `x = 1`: result should be 1. The loop doesn't execute, `result = 1`. Correct.
+
+The actual implementation logic appears correct, but Dafny can't verify it due to the lemma failure. The `digitSumBound` lemma fails because it doesn't call `digitSumConcat` to prove the split. This causes the whole verification to fail, meaning the method's postcondition is unverified.
+
+COUNTEREXAMPLE:
+- Input: `x = 10`
+- Expected output: A result `r` where `r > 0`, `r <= 10`, and `r` is the largest number in [1,10] with maximum digit sum. Digit sums: 1→1, 2→2, ..., 9→9, 10→1. Maximum is 9, so `result = 9`.
+- Actual behavior: The implementation returns `result = 9` (loop logic is actually correct), BUT Dafny cannot verify this because the `digitSumBound` lemma fails to prove `digitSum(intToDigits(x)) >= 1` for multi-digit numbers (missing `digitSumConcat` call), causing the loop invariant `forall y :: 1 <= y < i ==> digitSum(intToDigits(y)) <= bestSum` to be unverifiable. Dafny treats the postcondition as unproven.
+- Why it fails: The `digitSumBound` lemma's else-branch fails because `digitSum(full) == digitSum(prefix) + digitSum([x % 10])` isn't proven without calling `digitSumConcat(prefix, [x % 10])`, making the entire method's postcondition `ValidResult(x, result)` unverifiable by Dafny, violating the specification contract.

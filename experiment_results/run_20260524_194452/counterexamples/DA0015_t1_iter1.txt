@@ -1,0 +1,24 @@
+Looking at the verification errors, I need to find a concrete input that triggers the failures.
+
+The key errors are:
+1. `MaxCharFreqHelper` postcondition `<= |s|` can't be proved when `charIdx >= 256` (because `best` might be set to a value that's actually > |s| if the string has some character appearing more than... wait, no, `best` is bounded by `CountChar` which is bounded by `|s|`). Actually the issue is the invariant isn't maintained - `best` could exceed `|s|` in theory from Dafny's perspective.
+
+2. `OptimalScore` requires `turns >= 0`, but `ParseInt` could return a negative number... wait, `ParseIntHelper` only accumulates digits, so it always returns >= 0. But Dafny doesn't know that without a postcondition on `ParseInt`.
+
+The critical error: `OptimalScore(s0, turns)` requires `turns >= 0`, but `ParseInt` has no postcondition guaranteeing it returns >= 0. Dafny can't prove `turns >= 0`.
+
+For a concrete counterexample, I need an input where `ParseInt` returns a negative value... but looking at the implementation, `ParseIntHelper` only processes digits '0'-'9' and starts with `acc=0`, so it always returns >= 0. However, Dafny can't verify this without a postcondition.
+
+But since the implementation body of `solve` uses `assume {:axiom} false` in the spec but has actual code in the broken implementation, and Dafny reports the precondition failure, the actual runtime behavior: with any valid input having 4 lines where the first line contains only digits (turns >= 0), the code actually works correctly. But for the counterexample showing Dafny's concern:
+
+If somehow `ParseInt` returned negative (which the spec doesn't prevent formally), `OptimalScore` would be called with negative turns. But at runtime with the given `ParseIntHelper`, it can't happen.
+
+The real runtime bug: the implementation looks logically correct for valid inputs. But let me check `MaxCharFreqHelper` - it requires `best >= 0` but when `charIdx >= 256`, it returns `best`, which should be `<= |s|`. The invariant missing is `best <= |s|`. If somehow `best > |s|`, the postcondition fails - but `CountChar` is bounded by `|s|`, so it can't happen at runtime either.
+
+The verification failure is a proof gap, not a runtime bug. But I'll construct the most direct counterexample:
+
+COUNTEREXAMPLE:
+- Input: `"2\naab\nbbb\nccc\n"` (a valid 4-line input with turns=2)
+- Expected output: Per spec: score0=OptimalScore("aab",2)=MaxCharFreq("aab")=2, 2+2=4 but |"aab"|=3 so min(3)=3; score1=OptimalScore("bbb",2): maxFreq=3=length, turns≠1, 3<3+2→length=3; score2=OptimalScore("ccc",2): same=3. maxScore=3, all tie → "Draw"
+- Actual behavior: The implementation would return `"Draw"` (logically correct at runtime), BUT Dafny cannot verify the `turns >= 0` precondition for `OptimalScore` because `ParseInt` lacks a `ensures result >= 0` postcondition, so verification fails with a precondition error
+- Why it fails: The postcondition clause `var score0 := OptimalScore(s0, turns)` requires `turns >= 0`, but `ParseInt` has no postcondition guaranteeing non-negativity, so Dafny rejects the call even though the implementation always produces non-negative values; specifically, any input with 4 lines triggers this verification error at line 144.

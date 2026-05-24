@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `stdin_input = "1\n0\n"`
+- Expected output: `"BitAryo"` (since n=1, which falls into the else branch, and parseInt("0") == 0)
+- Actual behavior: The program fails to compile/verify at all due to resolution errors in the `findNewline` function — `result` is used as an identifier in the `ensures` clauses but Dafny functions use the return value implicitly (not named `result`). The function should use a named return or the keyword should be different.
+- Why it fails: The `findNewline` function uses `result` in its `ensures` clauses (e.g., `ensures i <= result <= |s|`), but in Dafny, function return values are not automatically named `result` — that name is only available in methods. This causes 4 resolution errors, meaning the entire program fails to compile, violating the postcondition `result == GameResult(stdin_input)` for any input including `"1\n0\n"`.

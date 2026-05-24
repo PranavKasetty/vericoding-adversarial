@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `"3 1 2\n"` (a string with three space-separated numbers followed by a newline)
+- Expected output: `"1"` (since max=3, threshold=2, missed for a=3: 0, for b=1: 2-1=1, for c=2: 0 → total=1... wait: a=3,b=1,c=2, max=3, threshold=2, missedA=0, missedB=2-1=1, missedC=0 → total=1, so IntToString(1)="1")
+- Actual behavior: The implementation fails to compile/verify at all due to unresolved identifiers (`SplitSpaces`, `TrimNewline`, `StringToInt`, `IntToString`), producing 19 resolution/type errors rather than any output.
+- Why it fails: The implementation references external helper functions (`SplitSpaces`, `TrimNewline`, `StringToInt`, `IntToString`) that are not defined anywhere in the file, causing the program to fail to resolve and thus never satisfy the postcondition `result == IntToString(CalculateMissedMeals(input))` for any input.

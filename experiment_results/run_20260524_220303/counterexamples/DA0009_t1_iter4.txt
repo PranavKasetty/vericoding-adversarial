@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: `"1 1 5\n1\n3\n"` (a string where the first line is "1 1 5", second line is "1", third line is "3")
+- Expected output: The spec requires `result == IntToStringFunc(ComputeMaxBourles(5, [1], [3])) + "\n"`. With x=MinSeq([1])=1, y=MaxSeq([3])=3, cnt=(5%1)+(5/1)*3=0+15=15, so result should be `"15\n"`.
+- Actual behavior: The Dafny verifier cannot prove the postconditions of `ParseInput` because `SplitIntsFunc` is an uninterpreted/axiomatized function with no axioms guaranteeing that the returned integers are ≥ 1. Dafny cannot verify `forall i :: 0 <= i < |result.3| ==> result.3[i] >= 1`. Additionally, `MinSeqFunc(S)` could return 0 (since there's no axiom preventing it), causing division by zero in `r % x` and `r / x` when x=0.
+- Why it fails: The helper functions `SplitIntsFunc`, `MinSeqFunc`, and `MaxSeqFunc` are declared as uninterpreted functions with no axioms, so Dafny has no basis to conclude that `SplitIntsFunc` returns sequences of positive integers (violating the `result.3[i] >= 1` postcondition of `ParseInput`), and no basis to conclude `MinSeqFunc(S) >= 1` (triggering the division-by-zero error in `ComputeMaxBourles`).

@@ -1,0 +1,19 @@
+COUNTEREXAMPLE:
+- Input: `"1\n123"`
+- Expected output: `"YES\n"` (since line[1] is "123", digits = {1,2,3}, which satisfies all four conditions of HasUniqueMovementSequence: (1∈digits), (1∈digits||2∈digits||3∈digits), (3∈digits), (none of 7,0,9 present... wait let me recheck)
+
+Let me recheck with "1\n0123":
+- digits = {0,1,2,3}
+- Condition 1: 1∈digits ✓
+- Condition 2: 1∈digits ✓  
+- Condition 3: 3∈digits ✓
+- Condition 4: 0∈digits ✓
+- Result should be "YES\n"
+
+Actually the verification error is a **parse error** — the implementation file contains a literal newline character inside a character literal `'\n'` that got corrupted. The file has `'` + newline + `' in s` instead of `'\n' in s`.
+
+COUNTEREXAMPLE:
+- Input: `"test\n0123"` (any valid input with a newline)
+- Expected output: `"YES\n"` (digits {0,1,2,3} satisfy all four HasUniqueMovementSequence conditions)
+- Actual behavior: The program **fails to compile/verify at all** due to a parse error on line 44 — the character literal for newline (`'\n'`) was stored as a literal newline character in the source, causing the Dafny parser to reject the file with "this symbol not expected in Dafny"
+- Why it fails: The implementation contains a malformed character literal (a raw newline inside `'...'`) in the lemma `split_lines_nonempty`, making the entire file unparseable, so no input can produce any output — violating every postcondition including `result == "YES\n" || result == "NO\n"`.

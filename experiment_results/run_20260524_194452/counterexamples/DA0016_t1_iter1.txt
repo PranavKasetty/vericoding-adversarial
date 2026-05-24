@@ -1,0 +1,44 @@
+I need to find a case where the decreases expression `c - computePosition(result, v0, v1, a, l) + result` might not decrease, meaning the loop might not terminate.
+
+The decreases expression is `c - computePosition(result, v0, v1, a, l) + result`. For this to decrease when `result` increments by 1, we need:
+
+`c - computePosition(result+1, ...) + (result+1) < c - computePosition(result, ...) + result`
+
+Simplifying: `computePosition(result+1, ...) > computePosition(result, ...) + 1`
+
+Wait, actually for it to decrease: the new value must be less than the old value.
+
+New: `c - computePosition(result+1, ...) + result + 1`
+Old: `c - computePosition(result, ...) + result`
+
+Difference (new - old): `- computePosition(result+1, ...) + computePosition(result, ...) + 1`
+
+For decrease: `computePosition(result+1, ...) - computePosition(result, ...) > 1`... wait, for the expression to decrease, new < old, so:
+`computePosition(result+1, ...) > computePosition(result, ...) + 1`... 
+
+But the issue Dafny flags is it can't prove this always decreases. The problem occurs when `computePosition` doesn't increase fast enough, or could even decrease.
+
+Let me think about when `computePosition(result+1, ...) <= computePosition(result, ...)`. 
+
+With `l > 0`, the position could potentially not grow. Let's try: `v0=1, l=0` is not allowed since `l < v0`. Let's try `v0=2, l=1, v1=2, a=0, c=1`.
+
+With these values: `computePosition(1, 2, 2, 0, 1)`:
+- prevPos = computePosition(0) = 0
+- afterReread = if 0 - 1 > 0 then ... else 0 = 0
+- readToday = if 2 < 2 + 0*0=2 then 2 else 2 = 2
+- result = 0 + 2 = 2
+
+So computePosition(1,...) = 2 >= c=1, loop doesn't execute.
+
+Let me try `c=10, v0=2, l=1, v1=2, a=0`:
+Day 1: pos=2, Day 2: afterReread=max(2-1,0)=1, readToday=2, pos=3. Day 3: afterReread=2, pos=4. It grows by 1 each day.
+
+The decreases expression: when pos grows by exactly 1 per step, `c - pos(result) + result` stays constant! That's the bug.
+
+If `computePosition(result+1) = computePosition(result) + 1`, then new = `c - (pos+1) + result+1 = c - pos + result` = old. The expression doesn't strictly decrease!
+
+COUNTEREXAMPLE:
+- Input: `c=10, v0=2, v1=2, a=0, l=1`
+- Expected output: `result=9` (since computePosition grows by 1 per day after day 1: day1=2, day2=3, ..., day9=10)
+- Actual behavior: The loop may not terminate or Dafny cannot verify termination because the decreases expression `c - computePosition(result, v0, v1, a, l) + result` equals `10 - 2 + 1 = 9` at result=1, then `10 - 3 + 2 = 9` at result=2, staying constant at 9 throughout — it never decreases.
+- Why it fails: When `l = v0 - 1 = 1` and `a = 0`, each iteration the position grows by exactly 1, so `c - computePosition(result,...) + result` remains constant, meaning the decreases clause is not satisfied and Dafny cannot prove loop termination.
