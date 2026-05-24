@@ -1,0 +1,3 @@
+[submodule "vericoding"]
+	path = vericoding
+	url = https://github.com/Beneficial-AI-Foundation/vericoding
