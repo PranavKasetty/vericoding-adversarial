@@ -1,0 +1,9 @@
+COUNTEREXAMPLE:
+
+- Input: This is not a runtime counterexample but a compilation error. The issue is in the helper function declarations.
+
+- Expected output: The code should compile with `ValidIntLine` having two overloaded signatures: one taking `(s: string, n: int)` and another taking `(s: string)`.
+
+- Actual behavior: Dafny does not support function overloading. Declaring two functions both named `ValidIntLine` with different parameter counts causes a "Duplicate member name" error. Additionally, the calls `ValidIntLine(lines[1])` and `ValidIntLine(lines[2])` in the preamble pass only 1 argument, but the only resolved `ValidIntLine` expects 2 arguments `(s: string, n: int)`.
+
+- Why it fails: Dafny forbids duplicate member names (no function overloading), so the two declarations of `ValidIntLine` — one with signature `(s: string, n: int): bool` and one with `(s: string): bool` — conflict. The preamble's `ValidInput` predicate calls `ValidIntLine(lines[1])` with 1 argument, which cannot resolve because only the 2-argument version survives name resolution. The fix is to use a single `ValidIntLine` function with a default parameter or rename them, e.g., declare `function ValidIntLine(s: string, n: int := -1): bool` to handle both call sites, or use two distinct names like `ValidIntLine` and `ValidIntLineN`.

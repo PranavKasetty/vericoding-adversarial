@@ -1,0 +1,9 @@
+Looking at this problem, the implementation is actually logically correct — it properly computes the result according to the specification. The issue is a **verification timeout**, not a logical error. Dafny's verifier struggles with the nonlinear arithmetic involved (products like `m * k`, modular arithmetic, etc.).
+
+However, since you asked for a concrete counterexample that would stress the verification, let me identify where Dafny's verifier gets stuck and construct a case that highlights the difficulty:
+
+COUNTEREXAMPLE:
+- Input: n = 3, m = 4, k = 5, a = 1, b = 61
+- Expected output: For a=1: entrance_a = (1-1)/(4*5) = 0, floor_a = 0/5 = 0. For b=61: entrance_b = (61-1)/(4*5) = 60/20 = 3, but wait — n*m*k = 60, so b=61 violates `b <= n*m*k`. Let me fix: b = 41. Then entrance_b = (41-1)/20 = 2, floor_b = (40 - 2*20)/5 = 0. Different entrances, so result = MinTravelTime(0) + 15 * MinEntranceDistance(0, 2, 3) + MinTravelTime(0) = 0 + 15*1 + 0 = 15.
+- Actual behavior: The implementation would compute the same value (15), but Dafny's verifier **times out** trying to prove the postcondition `result >= 0` and the equality postconditions because it cannot automatically reason about the nonlinear expressions `m * k`, `GetEntrance(apt, m, k) * m * k`, and the modular arithmetic in `MinEntranceDistance` within the 30-second limit.
+- Why it fails: The `GetFloorNonNeg` lemma contains the assertion `assert 0 <= r < mk` which requires Dafny to prove `(apt-1) - ((apt-1)/(m*k)) * (m*k) < m*k` — a nonlinear arithmetic fact that causes the solver to explore an exponential search space, leading to timeout rather than producing a wrong answer. The postcondition's nested function calls with nonlinear arguments compound this issue.

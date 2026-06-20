@@ -1,0 +1,16 @@
+Looking at the verification errors, they occur in the lemmas `SumOfInitialSeq` and `SumShiftLemmaGeneral`, specifically in their `else` branches. The issue is that Dafny cannot prove the postconditions of these lemmas for certain inputs, which means they might not hold, and consequently the main method's proof falls apart.
+
+Let me trace through the `SumShiftLemmaGeneral` lemma for `k=2, offset=1`:
+
+- It needs to prove: `sum(seq(2, i => i + 2)) == sum(seq(2, i => i + 1)) + 2`
+- i.e., `sum([2, 3]) == sum([1, 2]) + 2`, which is `5 == 3 + 2 = 5` ✓
+
+The real issue is that Dafny can't verify the recursive proof steps automatically. The lemmas themselves state correct mathematical facts, but the proofs are incomplete. This means the main method can't rely on them, and consequently may fail to prove `sum(result) == n`.
+
+Let me find a concrete input where the main method's postcondition actually could fail to be verified:
+
+COUNTEREXAMPLE:
+- Input: `n = 10, k = 3`
+- Expected output: A sequence `result` of length 3 that is strictly increasing, all positive, and sums to 10 — e.g., `[1, 2, 7]`. The spec requires `ValidSequence(result, 10, 3)`, meaning `sum(result) == 10`.
+- Actual behavior: The implementation constructs `sq = [1, 2, 7]` (since `extra = 10 - 6 = 4`, so `s[2] = 3 + 4 = 7`). The computed `sumVal` via the ghost loop equals 10. However, Dafny cannot verify that `sum(baseSeq) == k*(k+1)/2` because `SumOfInitialSeq(3)` calls `SumShiftLemmaGeneral(2, 1)`, whose postcondition Dafny cannot prove (the `else` branch for `k=2`). Without this, Dafny cannot establish `sum(sq) == n`, so the postcondition `ValidSequence(result, n, k)` — specifically `sum(result) == n` — is unverifiable.
+- Why it fails: The lemma `SumShiftLemmaGeneral` fails to verify its postcondition in the recursive case (`k >= 2`), so `SumOfInitialSeq(k)` cannot establish `sum(seq(k, i => i+1)) == k*(k+1)/2`, breaking the chain of reasoning that proves `sum(result) == n` as required by `ValidSequence`.

@@ -1,0 +1,16 @@
+Looking at the verification error, it's in the `computePositionLowerBound` lemma at line 66, not in the main method. The issue is a mutual recursion between `computePositionLowerBound` and `computePositionIncreases`, where the decreases clause might not decrease.
+
+Let me trace through the mutual recursion:
+
+- `computePositionLowerBound(days=2, ...)` calls `computePositionLowerBound(days=1, ...)` ✓ (decreases)
+- Then calls `computePositionIncreases(days=2, ...)` 
+- `computePositionIncreases(days=2, ...)` calls `computePositionIncreases(days=1, ...)` ✓
+- Then calls `computePositionLowerBound(days=1, ...)` ✓
+
+But the issue is that `computePositionIncreases(days=N, ...)` in its else branch calls `computePositionLowerBound(days=N-1, ...)`, and `computePositionLowerBound(days=N-1, ...)` calls `computePositionIncreases(days=N-1, ...)`. The decreases for `computePositionIncreases` is `days`, so calling `computePositionLowerBound(days-1)` which then calls `computePositionIncreases(days-1)` should be fine in terms of the actual values. But Dafny can't verify this because `computePositionLowerBound` at line 66 calls `computePositionIncreases(days, ...)` with the **same** `days` value — Dafny sees this as potentially non-decreasing since both lemmas use `decreases days`.
+
+COUNTEREXAMPLE:
+- Input: `c = 5, v0 = 2, v1 = 3, a = 1, l = 1`
+- Expected output: `result = 3` (since `computePosition(1,2,3,1,1) = 2 < 5`, `computePosition(2,2,3,1,1) = 2-1+2 = 3 < 5`, `computePosition(3,2,3,1,1) = 3-1+3 = 5 >= 5`)
+- Actual behavior: Dafny refuses to verify the program because in `computePositionLowerBound(days=3, ...)`, it calls `computePositionIncreases(days=3, ...)` at line 66 with the **same** decreases value (`days=3`). Then `computePositionIncreases(3,...)` calls `computePositionLowerBound(2,...)` which calls `computePositionIncreases(2,...)` — Dafny cannot confirm termination of this mutual recursion since `computePositionLowerBound` calls `computePositionIncreases` with the same `days` parameter, violating the requirement that the decreases clause must strictly decrease across mutual recursive calls.
+- Why it fails: The mutual recursion between `computePositionLowerBound(days)` and `computePositionIncreases(days)` calls each other with the same `days` value, so Dafny cannot prove the `decreases days` clause strictly decreases at line 66.

@@ -1,0 +1,13 @@
+COUNTEREXAMPLE:
+
+- Input: This is not a runtime counterexample but a type/resolution error. The issue is that `ValidIntLine` is declared in the helpers section with signature `function ValidIntLine(s: string, n: int): bool` (taking 2 arguments), but the preamble (which cannot be modified) calls it with 1 argument on lines 8 and 9: `ValidIntLine(lines[1])` and `ValidIntLine(lines[2])`.
+
+- Expected output: The helper section should declare `ValidIntLine` as an overloaded function or provide two versions — one taking 2 parameters `(s: string, n: int)` and one taking 1 parameter `(s: string)`. Dafny does not support function overloading, so two distinct function names or a function with a default-like pattern is needed. The preamble uses both `ValidIntLine(lines[0], 3)` (2 args) and `ValidIntLine(lines[1])` (1 arg), so two separate functions are required, e.g.:
+  - `function ValidIntLine(s: string, n: int): bool` for the 2-arg call
+  - `function ValidIntLine(s: string): bool` for the 1-arg call
+  
+  But since Dafny doesn't allow overloading, the actual fix must use a **predicate with a default parameter** or **two differently-named predicates** — however the preamble is locked and uses the same name `ValidIntLine` with both arities.
+
+- Actual behavior: Dafny reports 2 resolution/type errors because `ValidIntLine` is defined with 2 parameters but called with 1 argument at lines 8 and 9.
+
+- Why it fails: The helper section defines `ValidIntLine` with exactly 2 parameters `(s: string, n: int)`, but the immutable preamble calls `ValidIntLine(lines[1])` and `ValidIntLine(lines[2])` with only 1 argument. In Dafny, the solution is to declare the second parameter as optional using `:= -1` (a default value), i.e., `function ValidIntLine(s: string, n: int := -1): bool`, which allows both 1-arg and 2-arg calls to resolve correctly.

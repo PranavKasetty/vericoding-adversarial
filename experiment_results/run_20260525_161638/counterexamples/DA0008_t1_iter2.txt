@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n=2, m=3, k=3
+- Expected output: result=2 (since countLessOrEqualValue(2,3,2)=3 >= 3, and countLessOrEqualValue(2,3,1)=1 < 3)
+- Actual behavior: The verification error is in the lemma `countLessValueMonotone`, specifically the assertion `(t1 - 1) / n <= (t2 - 1) / n` — Dafny cannot automatically prove integer division monotonicity. For example, with n=2, t1=1, t2=2: (1-1)/2 = 0 and (2-1)/2 = 0, so 0 <= 0 holds, but Dafny's verifier cannot prove this without additional hints. With n=2, t1=2, t2=3: (2-1)/2=0, (3-1)/2=1, holds fine. The assertion lacks the needed lemma/proof that integer division is monotone.
+- Why it fails: The Dafny verifier cannot automatically discharge `(t1-1)/n <= (t2-1)/n` given only `t1-1 <= t2-1` and `n >= 1`, because integer division monotonicity is not built into Dafny's arithmetic reasoning — a concrete failing witness would be t1=1, t2=2, n=2 where the assertion block provides no proof steps to guide the verifier, causing the proof obligation to remain unverified and potentially allowing the binary search loop invariant `lo == 1 || countLessOrEqualValue(n, m, lo - 1) < k` to be falsified.

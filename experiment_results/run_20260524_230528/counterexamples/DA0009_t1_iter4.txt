@@ -1,0 +1,6 @@
+COUNTEREXAMPLE:
+
+- Input: `"1 1 5\n0\n3\n"` (assuming `SplitLinesFunc` splits on `\n` and `SplitIntsFunc` parses space-separated integers)
+- Expected output: The postcondition of `ParseInput` requires `forall i :: 0 <= i < |result.3| ==> result.3[i] >= 1` (all elements of S are ≥ 1) and similarly all elements of B are ≥ 1.
+- Actual behavior: `SplitIntsFunc(lines[1])` returns `[0]`, so `result.3[0] == 0`, which violates `result.3[0] >= 1`. Similarly, if B contained a non-positive value, that postcondition would also fail.
+- Why it fails: The `ValidIntLine` function is declared without a body (bodyless/axiom), so Dafny cannot prove that `SplitIntsFunc` applied to a "valid" line produces only values ≥ 1. There is no postcondition on `SplitIntsFunc` guaranteeing its returned integers are all ≥ 1, and no postcondition on `ValidIntLine` linking it to the contents parsed by `SplitIntsFunc`. Thus Dafny cannot establish the `ParseInput` postconditions on lines 22–23 requiring all elements of S and B to be at least 1.

@@ -1,0 +1,15 @@
+I need to analyze why the implementation fails to prove the last postcondition: that for ALL pairs (i, j) where arr[i] == arr[j] == seq_min(arr), the gap j - i >= result.
+
+The implementation finds the minimum gap between **consecutive** occurrences of the minimum value. But the postcondition requires that `j - i >= result` for ALL pairs (i, j) with the minimum value, not just consecutive ones. Since consecutive gaps are always ≤ non-consecutive gaps (because non-consecutive gaps are sums of consecutive gaps), the result is actually correct — but Dafny can't prove it.
+
+The issue is a **verification failure**, not a logical bug. The implementation computes the right answer but Dafny can't verify the final postcondition because the assertion `forall i, j :: 0 <= i < j < |arr| && arr[i] == arr[j] == minVal ==> i in positions && j in positions` is insufficient. Even knowing i and j are in positions, Dafny needs to know that the gap between any two (not just consecutive) positions is at least `minGap`, which requires proving that non-consecutive gaps are sums of consecutive gaps.
+
+However, since I need a concrete counterexample, let me think about whether there's an actual input that breaks it...
+
+Actually, the algorithm IS correct for all inputs. The verification failure is purely a proof gap. But let me construct an input that highlights why Dafny is worried:
+
+COUNTEREXAMPLE:
+- Input: arr = [1, 2, 1, 2, 1]
+- Expected output: result = 2 (minimum gap between consecutive occurrences of 1 at positions 0,2,4 is 2; and all pairs have gaps 2, 4, 2 which are all ≥ 2)
+- Actual behavior: The implementation correctly computes result = 2, but Dafny cannot verify that non-consecutive pairs (like positions 0 and 4, gap = 4) satisfy j - i >= result. The implementation only proves that consecutive position gaps are ≥ minGap, but doesn't prove that for arbitrary i, j in the array with arr[i] == arr[j] == 1, the distance j - i is at least result. Specifically, knowing `i in positions` and `j in positions` doesn't let Dafny conclude `j - i >= minGap` for non-consecutive position pairs.
+- Why it fails: The proof doesn't establish that the gap between any two elements in the sorted `positions` sequence is at least `minGap` (only that consecutive gaps are ≥ minGap), so the postcondition `forall i, j :: ... ==> j - i >= result` cannot be verified for non-adjacent position pairs like (0, 4).

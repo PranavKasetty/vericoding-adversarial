@@ -1,0 +1,30 @@
+Looking at the verification errors, they're in the helper lemmas `SumOfInitialSeq` and `SumShiftLemmaGeneral`, specifically in their recursive cases. Let me trace through the issue.
+
+The problem is in `SumShiftLemmaGeneral`. In the recursive case, the lemma asserts:
+```
+assert s1[1..] == seq(k-1, i => i + offset + 2);
+assert s2[1..] == seq(k-1, i => i + offset + 1);
+```
+
+Then it calls `SumShiftLemmaGeneral(k - 1, offset + 1)`, which gives:
+```
+sum(seq(k-1, i => i + (offset+1) + 1)) == sum(seq(k-1, i => i + (offset+1))) + (k-1)
+```
+i.e., `sum(seq(k-1, i => i + offset + 2)) == sum(seq(k-1, i => i + offset + 1)) + (k-1)`
+
+But the lemma needs to prove:
+`sum(seq(k, i => i + offset + 1)) == sum(seq(k, i => i + offset)) + k`
+
+Expanding: `(offset+1) + sum(seq(k-1, i => i+offset+2)) == offset + sum(seq(k-1, i => i+offset+1)) + k`
+
+Using the recursive result: LHS = `(offset+1) + sum(seq(k-1, i=>i+offset+1)) + (k-1)` = `offset + k + sum(seq(k-1, i=>i+offset+1))` = RHS ✓
+
+The logic is correct but Dafny can't verify it. The real issue is that Dafny can't automatically connect the sequence slicing with the lambda-constructed sequences. This isn't a logical counterexample — the lemmas are mathematically correct but Dafny needs more proof steps.
+
+However, since you asked for a concrete counterexample that triggers the failure:
+
+COUNTEREXAMPLE:
+- Input: `n = 10, k = 3`
+- Expected output: A valid sequence like `[1, 2, 7]` (length 3, strictly increasing, all positive, sum = 10), since `IsPossible(10, 3)` is true because `3*4/2 = 6 <= 10`.
+- Actual behavior: The implementation constructs `sq = [1, 2, 7]` which is correct, but Dafny cannot verify the `SumOfInitialSeq(3)` lemma because the recursive case (k=3 → k=2) calls `SumShiftLemmaGeneral(2, 1)`, whose recursive case (k=2 → k=1) requires Dafny to automatically prove that `seq(2, i => i + 2)[1..] == seq(1, i => i + 3)` and `seq(2, i => i + 1)[1..] == seq(1, i => i + 2)`, which Dafny's sequence extensionality reasoning fails to establish without explicit `forall` assertions.
+- Why it fails: The `SumShiftLemmaGeneral` lemma's postcondition (`sum(seq(k, i => i + offset + 1)) == sum(seq(k, i => i + offset)) + k`) cannot be proved because Dafny cannot automatically verify that slicing a lambda-generated sequence produces another lambda-generated sequence with the expected offset, so the recursive proof chain breaks.

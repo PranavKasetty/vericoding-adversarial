@@ -1,0 +1,11 @@
+
+Looking at the verification errors, they all relate to the case where `a == b`, which means `b - a == 0`, violating the precondition `b > 0` for recursive calls.
+
+Let me trace through a concrete example:
+
+**COUNTEREXAMPLE:**
+
+- **Input:** `t = 1, w = 3, b = 3`
+- **Expected output:** A valid irreducible fraction with `numerator >= 0`, `denominator > 0`, `numerator <= denominator`, and `gcd(numerator, denominator) == 1`
+- **Actual behavior:** The implementation sets `num = 3, den = 6`, then calls `gcd(3, 6)`. Inside `gcd(3, 6)`: since `a <= b`, it recurses to `gcd(3, 3)`. Inside `gcd(3, 3)`: since `a <= b`, it recurses to `gcd(3, 0)` — but this violates the precondition `b > 0` since `b - a = 3 - 3 = 0`.
+- **Why it fails:** When `a == b` (e.g., `a = 3, b = 3`), the branch `a <= b` is taken and computes `gcd(a, b - a) = gcd(3, 0)`, which violates the precondition `b > 0` of the `gcd` function. The `gcd` definition needs to handle the case `a == b` separately (returning `a`) before recursing with `b - a`.

@@ -1,0 +1,20 @@
+
+
+Looking at the verification errors, the primary issue is in the `split_lines` function at line 26:
+
+```dafny
+else if idx < |s| then [s[..idx]] + split_lines(s[idx+1..])
+```
+
+The error is "upper bound below lower bound or above length of sequence" for `s[..idx]`. This happens when `find_char` returns a value, but Dafny can't prove that `idx >= 0` in this context (since `find_char` could theoretically return -1 when `'\n' !in s` is false but the recursion hasn't been proven correct in all contexts).
+
+However, the deeper problem is that the prover runs out of memory trying to verify the `solve` method, particularly around the `string_to_digits` set comprehension which involves reasoning about all characters. The implementation is functionally attempting the right thing but Dafny can't verify it.
+
+Let me find a concrete counterexample that would actually violate the postcondition:
+
+COUNTEREXAMPLE:
+- Input: `"4\n\n190"` (the string `"4"`, newline, empty string, newline, `"190"`)
+- Expected output: The spec says `lines = split_lines("4\n\n190")`. `find_char` finds `'\n'` at index 1, so `lines = ["4"] + split_lines("\n190")`. Then `split_lines("\n190")` finds `'\n'` at index 0, so it becomes `[""] + split_lines("190") = ["", "190"]`. Thus `lines = ["4", "", "190"]`, `lines[1] = ""`, `digits = string_to_digits("") = {}`, `HasUniqueMovementSequence({}) = false`, so spec requires `result == "NO\n"`.
+- Actual behavior: The code computes `newline_pos = 1`, `line1 = "\n190"`, then `lines[1] = split_lines("\n190")[0] = ""`, `digits2 = {}`, `has_unique2 = false`, so `result = "NO\n"`. This case works, but the verification **crashes with out-of-memory** because Dafny cannot discharge the proof obligations around `string_to_digits` set comprehensions and the recursive `split_lines` reasoning. The `s[..idx]` bound check at line 26 also fails because `find_char`'s postconditions aren't available in the function context (lemmas can't be called inside functions).
+
+- Why it fails: The `split_lines` function calls `find_char` but cannot use the `find_char_in` lemma (lemmas can't be invoked in function bodies), so Dafny cannot prove `idx >= 0` for the slice `s[..idx]`, causing the "upper bound below lower bound" error. Additionally, the `string_to_digits` set comprehension causes the SMT solver to run out of memory when trying to verify the postcondition's biconditional.

@@ -1,0 +1,34 @@
+Looking at the code, I need to trace through the logic to find a concrete counterexample.
+
+The verification errors are primarily in the "witness finding" loop at the bottom. Let me trace through an example to see the issue.
+
+Consider `arr = [1, 2, 1, 2, 1]`:
+- `minVal = 1`
+- `positions = [0, 2, 4]`
+- First loop computes gaps: `positions[1]-positions[0] = 2`, `positions[2]-positions[1] = 2`
+- `minGap = 2`, so `result = 2`
+
+Now the witness loop starts with `wi = 0`:
+- Loop invariant at entry: `positions[wi+1] - positions[wi] != result || wi >= |positions| - 1`
+- `positions[1] - positions[0] = 2 == result`, so the left disjunct is `false`
+- `wi = 0 >= |positions| - 1 = 2` is `false`
+- So the invariant is `false || false = false` → **invariant fails on entry!**
+
+The invariant is logically broken. It's supposed to express "we haven't found the match yet," but on entry when the very first pair *is* the match, the invariant is false.
+
+But beyond the invariant issue, the real algorithmic problem is: the spec requires finding the minimum gap across **all** pairs `(i, j)` with `arr[i] == arr[j] == minVal`, not just **consecutive** pairs in the positions list. The implementation only checks consecutive positions.
+
+Consider `arr = [1, 3, 1, 3, 1]`:
+- `minVal = 1`, `positions = [0, 2, 4]`
+- Consecutive gaps: 2, 2 → `result = 2`
+- All pairs: (0,2)=2, (0,4)=4, (2,4)=2 → minimum is 2. This works.
+
+Actually, for sorted positions, the minimum gap among all pairs IS the minimum consecutive gap. So the algorithm is correct in principle — only the verification (the witness loop invariant) is broken.
+
+The concrete trigger is simple:
+
+COUNTEREXAMPLE:
+- Input: `arr = [1, 2, 1]`
+- Expected output: `result = 2` (the only pair of minimum-value indices is (0, 2), gap = 2)
+- Actual behavior: The first gap-finding loop correctly computes `minGap = 2` and `result = 2`. Then the witness loop starts with `wi = 0`. The loop invariant `positions[wi+1] - positions[wi] != result || wi >= |positions| - 1` evaluates to `(2 != 2) || (0 >= 1)` = `false || false` = `false`, so the invariant fails on entry. The loop body would try to break immediately (since the gap equals result), but Dafny rejects the program before execution because the invariant cannot be established on entry.
+- Why it fails: The loop invariant `positions[wi+1] - positions[wi] != result || wi >= |positions| - 1` is violated on entry when the first consecutive pair already has the minimum gap, causing the verification to fail before the postconditions can be established.

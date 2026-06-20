@@ -1,0 +1,34 @@
+I need to analyze why the decreases clause `c - computePosition(result, v0, v1, a, l) + result` might not decrease.
+
+The issue is that when `result` increases by 1, `computePosition(result, v0, v1, a, l)` might also increase by more than 1, or it might not increase enough. Let me think about this more carefully.
+
+The decreases expression is `c - computePosition(result, v0, v1, a, l) + result`. When `result` goes from `r` to `r+1`:
+- Old value: `c - computePosition(r, v0, v1, a, l) + r`
+- New value: `c - computePosition(r+1, v0, v1, a, l) + (r+1)`
+
+For it to decrease, we need:
+`c - computePosition(r+1, ...) + r + 1 < c - computePosition(r, ...) + r`
+
+This simplifies to: `computePosition(r+1, ...) > computePosition(r, ...) + 1`
+
+So if `computePosition` increases by exactly 0 or 1 between consecutive days, the decreases clause doesn't decrease.
+
+Let me find a concrete case. Let me try `c = 5, v0 = 1, v1 = 1, a = 0, l = 0`:
+
+- `computePosition(0, 1, 1, 0, 0) = 0`
+- `computePosition(1, 1, 1, 0, 0) = 0 + min(1, 1+0*0) = 0 + 1 = 1`
+- `computePosition(2, 1, 1, 0, 0) = (1-0=1, >0 so 1) + min(1, 1+0*1) = 1 + 1 = 2`
+- `computePosition(3, ...) = 2 + 1 = 3`
+- `computePosition(4, ...) = 3 + 1 = 4`
+- `computePosition(5, ...) = 4 + 1 = 5`
+
+Now check decreases at result=1: `5 - 1 + 1 = 5`
+At result=2: `5 - 2 + 2 = 5`
+
+The decreases value stays the same (5 → 5), so it doesn't decrease! This is the problem.
+
+COUNTEREXAMPLE:
+- Input: `c = 5, v0 = 1, v1 = 1, a = 0, l = 0`
+- Expected output: `result = 5` (since `computePosition(5, 1, 1, 0, 0) = 5 >= 5` and `computePosition(4, 1, 1, 0, 0) = 4 < 5`)
+- Actual behavior: The loop would correctly compute `result = 5`, but Dafny cannot verify termination because the decreases expression `c - computePosition(result, v0, v1, a, l) + result` does not decrease between iterations. At `result=1` it equals `5 - 1 + 1 = 5`, at `result=2` it equals `5 - 2 + 2 = 5`, at `result=3` it equals `5 - 3 + 3 = 5`, etc. — the value stays constant at 5 throughout.
+- Why it fails: When `computePosition` increases by exactly 1 per day (as happens with `v0=v1=1, a=0, l=0`), the decrease expression `c - computePosition(result, ...) + result` remains constant rather than strictly decreasing, so Dafny cannot prove the loop terminates. A correct decreases clause would be simply `c - computePosition(result, v0, v1, a, l)` since `computePosition` increases by at least 1 each iteration (because `v0 >= 1 > l >= 0`).

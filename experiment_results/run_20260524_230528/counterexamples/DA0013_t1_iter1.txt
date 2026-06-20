@@ -1,0 +1,21 @@
+Looking at the verification error, the issue is with maintaining the loop invariant that `positions` is strictly sorted. The invariant states:
+
+```
+forall a, b :: 0 <= a < b < |positions| ==> positions[a] < positions[b]
+```
+
+The problem is that the loop only maintains that elements added to `positions` are indices where `arr[idx] == minVal`, but the invariant about strict ordering isn't being proved because Dafny can't automatically connect the fact that `idx` increases monotonically with the ordering of `positions`.
+
+However, this is actually a **verification** issue, not a true logical bug — the implementation is logically correct but Dafny can't prove it. But there's also a more subtle logical issue with the last loop invariant:
+
+```
+invariant forall a, b :: 0 <= a < b <= p ==> positions[b] - positions[a] >= minGap
+```
+
+This claims the minimum gap is over ALL pairs `(a,b)` with `b <= p`, but the algorithm only compares **consecutive** pairs. For non-consecutive pairs, `positions[b] - positions[a] > positions[b] - positions[b-1]` only if positions are sorted, but the minimum gap between ANY pair equals the minimum gap between CONSECUTIVE pairs only when the sequence is sorted — which it is, but Dafny can't verify this.
+
+COUNTEREXAMPLE:
+- Input: `arr = [1, 0, 1, 0, 1]`
+- Expected output: `result = 2` (minimum distance between two occurrences of `0`, the minimum value; e.g., indices 1 and 3)
+- Actual behavior: The implementation would correctly compute `positions = [1, 3]` and `result = 2`, but Dafny cannot verify the loop invariant about strict ordering of `positions` is maintained. Specifically, when `idx = 3` and `positions = [1]` before appending `3`, Dafny needs to prove that `positions[0] < 3` (i.e., `1 < 3`) after appending, but the invariant lacks a connection between `positions` elements and `idx` (e.g., that all elements in `positions` are `< idx`).
+- Why it fails: The loop invariant `forall a, b :: 0 <= a < b < |positions| ==> positions[a] < positions[b]` cannot be proved maintained because there is no supporting invariant like `|positions| > 0 ==> positions[|positions|-1] < idx` that would let Dafny conclude newly appended `idx` is strictly greater than all existing elements in `positions`.

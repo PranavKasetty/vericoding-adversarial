@@ -1,0 +1,23 @@
+Looking at this problem, I need to understand what the specification actually requires versus what the implementation computes.
+
+The specification says: given `t`, `w`, `b` (all positive), return an irreducible fraction `numerator/denominator` where `0 <= numerator <= denominator` and `gcd(numerator, denominator) == 1`.
+
+The specification doesn't actually constrain what fraction should be returned — it just says return *some* valid irreducible fraction. So the implementation's choice of `w/(w+b)` reduced to lowest terms is a valid approach *if the lemmas verify*.
+
+The verification errors are about the lemmas not verifying, not about logical incorrectness. Let me look at the specific lemma failure:
+
+**`GcdDividesNumerator`** at the `else` branch (line 40, when `a > b`): The recursive call is `GcdDividesNumerator(a - b, b)`, which gives `(a-b) % gcd(a-b, b) == 0`. Since `gcd(a, b) == gcd(a-b, b)`, we need `a % gcd(a-b, b) == 0`. We know `(a-b) % g == 0` and `b % g == 0` (wait, we don't know `b % g == 0` from this lemma alone).
+
+That's the actual bug: in the `else` branch of `GcdDividesNumerator`, the recursive call gives `(a-b) % gcd(a-b, b) == 0`, but to conclude `a % gcd(a-b, b) == 0`, you also need `b % gcd(a-b, b) == 0`, which requires `GcdDividesDenominator`.
+
+Let me find a concrete input that triggers this:
+
+For `GcdDividesNumerator(3, 2)`: `a=3, b=2`, goes to `else` branch, calls `GcdDividesNumerator(1, 2)`. `gcd(1,2)=1`. `1 % 1 == 0` ✓, and `3 % 1 == 0` ✓. Works fine since `g=1`.
+
+For `GcdDividesNumerator(4, 2)`: `a=4, b=2`, goes to `else`, calls `GcdDividesNumerator(2, 2)`. `gcd(2,2)=2`. `2 % 2 == 0` ✓. Need `4 % 2 == 0` ✓. But Dafny can't prove this without knowing `b % g == 0`.
+
+COUNTEREXAMPLE:
+- Input: `t = 1, w = 4, b = 2`
+- Expected output: A valid irreducible fraction, e.g., `numerator = 2, denominator = 3` (since `4/(4+2) = 4/6 = 2/3`)
+- Actual behavior: The implementation computes `num = 4, den = 6, g = gcd(4, 6) = 2`, then `numerator = 2, denominator = 3`. The computed values are actually correct, but Dafny cannot verify the lemma `GcdDividesNumerator(4, 6)` because in the `else` branch (when `a > b`), after recursing on `GcdDividesNumerator(a-b, b)`, the proof needs `b % gcd(a-b, b) == 0` to conclude `a % gcd(a-b, b) == 0`, but that fact is not established (it requires calling `GcdDividesDenominator` which is not invoked).
+- Why it fails: The `GcdDividesNumerator` lemma's `else` branch (line 40) fails to prove `a % gcd(a, b) == 0` because knowing `(a-b) % g == 0` is insufficient to derive `a % g == 0` without also proving `b % g == 0` — the missing call to `GcdDividesDenominator(a-b, b)` in that branch is needed.

@@ -1,0 +1,9 @@
+Looking at this problem, the implementation computes `w/(w+b)` reduced to lowest terms. The verification timeouts are due to the lemmas being inefficient (using subtraction-based GCD which has exponential-length proof chains for certain inputs), not due to logical incorrectness.
+
+Let me find a concrete input that would cause the subtraction-based GCD to require extremely deep recursion, which is what triggers the timeout.
+
+COUNTEREXAMPLE:
+- Input: `t = 1, w = 1, b = 10000`
+- Expected output: A valid irreducible fraction with `numerator >= 0`, `denominator > 0`, `numerator <= denominator`, and `gcd(numerator, denominator) == 1`
+- Actual behavior: The implementation would compute `num = 1, den = 10001`, then call `GcdOfDivided(1, 10001)` which internally calls `GcdDividesNumerator(1, 10001)`. Since `1 < 10001`, this recursively calls `GcdDividesNumerator(1, 10000)`, then `GcdDividesNumerator(1, 9999)`, etc. — requiring 10000 recursive steps. The subtraction-based GCD proofs create proof obligations of depth O(max(a,b)), causing Dafny's verifier to time out. The method would produce `numerator = 1, denominator = 10001`, which is actually correct, but Dafny cannot verify the lemmas terminate/hold within the time limit.
+- Why it fails: The subtraction-based `gcd` function and its associated lemmas (`GcdDividesNumerator`, `GcdDividesDenominator`) have `decreases a + b` but reduce by subtraction rather than modulo, creating proof chains of length O(b) when `a << b`. This causes the SMT solver to time out trying to verify the lemma postconditions `a % gcd(a, b) == 0` and `b % gcd(a, b) == 0`, which in turn prevents verification of `solve`'s postconditions.

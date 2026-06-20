@@ -1,0 +1,53 @@
+I need to find concrete inputs where `FloorDiv(b, k) - FloorDiv(a - 1, k)` produces a negative result, violating the `result >= 0` postcondition.
+
+Let me analyze the `FloorDiv` function carefully:
+- If `a >= 0`: returns `a / b` (Dafny's integer division, which truncates toward zero for non-negative values)
+- If `a < 0`: returns `(a - b + 1) / b`
+
+The issue is that Dafny can't automatically prove that `CountDivisiblesInRange` is always non-negative. Let me check if it actually IS always non-negative, or if there's a real counterexample.
+
+For `a <= b` and `k > 0`:
+- `FloorDiv(b, k)` computes the floor division of `b` by `k`
+- `FloorDiv(a-1, k)` computes the floor division of `(a-1)` by `k`
+
+Since `a <= b`, we have `a - 1 < b`, so `a - 1 <= b - 1 < b`. This means `FloorDiv(a-1, k) <= FloorDiv(b, k)`, so the result should always be `>= 0`.
+
+However, Dafny can't prove this automatically. The verification error is that Dafny cannot establish the postcondition `result >= 0`, not that it's actually false. But the task asks for a concrete counterexample...
+
+Let me check Dafny's division semantics more carefully. In Dafny, `/` for integers is Euclidean division (rounds toward negative infinity for negative dividends). Wait, actually in Dafny, integer division truncates toward zero, same as most languages.
+
+Actually, let me reconsider. In Dafny, for integers, `a / b` is defined such that `a == (a/b)*b + (a%b)` and `0 <= a%b < b` when `b > 0`. So Dafny uses **Euclidean** division, which always rounds down (floor division) for positive divisor.
+
+So if `a >= 0`, `FloorDiv(a, b) = a / b` which IS already floor division.
+If `a < 0`, `FloorDiv(a, b) = (a - b + 1) / b`. But since Dafny already does floor division, this would be WRONG for negative `a`.
+
+For example: `a = -1, b = 2`: 
+- `FloorDiv(-1, 2)`: since `a < 0`, returns `(-1 - 2 + 1) / 2 = -2 / 2 = -1`
+- But actual floor(-1/2) = -1. OK that matches.
+
+Wait, but if Dafny already does Euclidean division (floor for positive divisor), then `(-1) / 2 = -1` in Dafny already. So the `else` branch does `(-1 - 2 + 1)/2 = -2/2 = -1`. Same answer. But is this always the case?
+
+Let me try `a = -2, b = 2`: Dafny: `(-2)/2 = -1`. FloorDiv: `(-2-2+1)/2 = -3/2 = -2` (Dafny Euclidean). But actual floor(-2/2) = -1. So FloorDiv gives -2, which is WRONG.
+
+Now: `k=2, a=-2, b=-2` (so `a <= b`):
+- `FloorDiv(-2, 2) = (-2-2+1)/2 = -3/2 = -2` (Dafny Euclidean)
+- `FloorDiv(a-1, k) = FloorDiv(-3, 2) = (-3-2+1)/2 = -4/2 = -2`
+- Result = -2 - (-2) = 0. OK.
+
+Try `k=2, a=-1, b=-1`:
+- `FloorDiv(-1, 2) = (-1-2+1)/2 = -2/2 = -1`
+- `FloorDiv(-2, 2) = (-2-2+1)/2 = -3/2 = -2`
+- Result = -1 - (-2) = 1. OK.
+
+Try `k=3, a=-2, b=-2`:
+- `FloorDiv(-2, 3) = (-2-3+1)/3 = -4/3 = -2` (Euclidean)
+- `FloorDiv(-3, 3) = (-3-3+1)/3 = -5/3 = -2` (Euclidean)
+- Result = -2 - (-2) = 0. Fine.
+
+The implementation is likely correct but Dafny can't prove it. Since this is a verification failure (not a runtime failure), but the task asks for a counterexample:
+
+COUNTEREXAMPLE:
+- Input: k=2, a=-2, b=-2
+- Expected output: result >= 0 and result == CountDivisiblesInRange(2, -2, -2) = FloorDiv(-2,2) - FloorDiv(-3,2) = -2 - (-2) = 0
+- Actual behavior: The implementation computes result = 0, which satisfies both postconditions, but Dafny cannot prove `result >= 0` in general because it lacks a lemma showing `FloorDiv` is monotonic.
+- Why it fails: This is a **proof failure**, not a runtime failure. Dafny cannot automatically prove that `FloorDiv(b, k) - FloorDiv(a-1, k) >= 0` for all valid inputs because it needs a monotonicity lemma for `FloorDiv`. No concrete counterexample exists — the implementation is correct but unverified.

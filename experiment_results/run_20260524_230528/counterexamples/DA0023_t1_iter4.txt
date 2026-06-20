@@ -1,0 +1,9 @@
+Looking at this problem, the implementation is actually logically correct - it properly handles both the same-entrance and different-entrance cases. The issue is a **verification timeout**, not a logical error. Dafny's verifier can't prove the postconditions within the time limit due to nonlinear arithmetic (multiplications like `m * k`, `15 * entrance_dist`).
+
+However, since you asked for a concrete counterexample that could expose issues, let me trace through a case where the nonlinear arithmetic is particularly challenging for the verifier:
+
+COUNTEREXAMPLE:
+- Input: `n = 3, m = 4, k = 5, a = 1, b = 21`
+- Expected output: For `a=1`: `GetEntrance(1, 4, 5) = 0/20 = 0`, `GetFloor(1, 4, 5) = 0/5 = 0`. For `b=21`: `GetEntrance(21, 4, 5) = 20/20 = 1`, `GetFloor(21, 4, 5) = (20 - 1*20)/5 = 0`. Different entrances, so `result = MinTravelTime(0) + 15 * MinEntranceDistance(0, 1, 3) + MinTravelTime(0) = 0 + 15*1 + 0 = 15`.
+- Actual behavior: The implementation would compute `result = 15`, which is correct, but Dafny **times out** trying to verify that `MinTravelTime(floor_a) + 15 * entrance_dist + MinTravelTime(floor_b)` equals the postcondition expression `MinTravelTime(GetFloor(a, m, k)) + 15 * MinEntranceDistance(GetEntrance(a, m, k), GetEntrance(b, m, k), n) + MinTravelTime(GetFloor(b, m, k))` because the verifier struggles with the nonlinear term `m * k = 4 * 5 = 20` when reasoning about division `(apt-1) / (m*k)` and the modular arithmetic in `MinEntranceDistance`.
+- Why it fails: The timeout occurs because Dafny's SMT solver cannot efficiently reason about nonlinear arithmetic involving `m * k` in `GetEntrance`/`GetFloor` definitions and `15 * entrance_dist` in the different-entrance branch, causing it to exhaust the 30-second verification time limit rather than finding a proof of the postcondition.

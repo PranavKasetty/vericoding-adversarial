@@ -1,0 +1,12 @@
+COUNTEREXAMPLE:
+
+- Input: Consider `simulateTrainsHelper(4, 3, 4, 2, 1, 8)` — this corresponds to n=4, a=3, x=4, b=2, y=1, fuel=8.
+
+- Step-by-step trace of the recursive call:
+  - `na = (3 % 4) + 1 = 4`, but `a == x` is false (3 ≠ 4), so `na = (3 % 4) + 1 = 4`. Now `na == x == 4`, so in the recursive call, `a' = 4, x = 4`, meaning `a != x` is violated.
+
+- Expected output: The recursive call should be valid, meaning all preconditions including `a != x` must hold for the new arguments.
+
+- Actual behavior: The function computes `na = (a % n) + 1 = (3 % 4) + 1 = 4`, and since `x = 4`, the recursive call `simulateTrainsHelper(4, 4, 4, ...)` violates the precondition `a != x` (which requires `na != x`).
+
+- Why it fails: When `a` is one step before `x` on the circular track (i.e., `(a % n) + 1 == x`), the function moves `a` to position `x` without handling the "train stops at destination" logic correctly for train `a`. The code has an unused `a'` variable and the actual `na` computation doesn't skip `x` when `a` hasn't reached `x` yet but would land on it — it should stop there permanently, yet the precondition forbids `na == x` in recursive calls, causing the verification failure. Similarly, `nb` can equal `b` (when `b == y`) leading to `nb == y` violating `b != y`, and `fuel` is not guaranteed non-negative since `fuel` can start at 0 with `fuel - 1 = -1`.

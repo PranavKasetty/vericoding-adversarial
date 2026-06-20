@@ -1,0 +1,23 @@
+Looking at the two errors:
+
+1. **`GetFloorNonNeg` lemma fails**: The postcondition `GetFloor(apt, m, k) >= 0` cannot be proved. This is because `GetFloor` involves division with a remainder after subtracting `GetEntrance(apt, m, k) * m * k`, and Dafny struggles with nonlinear arithmetic to confirm the result is non-negative.
+
+2. **`solve` times out**: This is a downstream consequence of the nonlinear arithmetic complexity.
+
+Let me trace through `GetFloor` to see if it's actually always non-negative, or if there's a real issue:
+
+`GetFloor(apt, m, k) = ((apt - 1) - GetEntrance(apt, m, k) * m * k) / k`
+
+where `GetEntrance(apt, m, k) = (apt - 1) / (m * k)`.
+
+Let `q = (apt - 1) / (m * k)` (integer division). Then `(apt - 1) = q * m * k + r` where `0 <= r < m * k`. So `GetFloor = r / k` where `0 <= r < m * k`, meaning `0 <= r/k < m`. So `GetFloor >= 0` always holds — it's just that Dafny can't prove it automatically due to nonlinear arithmetic.
+
+The real verification failure is the **timeout in `solve`**, which means the implementation logic *might* be correct but Dafny can't verify it. However, since the task is to find a counterexample for the *broken implementation*, and the `GetFloorNonNeg` lemma body is empty (no proof), let me find a concrete case where Dafny's automatic reasoning fails.
+
+The implementation logic itself appears functionally correct. The issue is purely a verification failure. But let me check if there's a subtle bug by picking concrete values:
+
+COUNTEREXAMPLE:
+- Input: `n = 1, m = 3, k = 2, a = 1, b = 6`
+- Expected output: For same entrance (both entrance 0), `floor_a = GetFloor(1,3,2) = 0`, `floor_b = GetFloor(6,3,2) = 2`, floor_diff = 2, `MinTravelTime(2) = min(10, 12) = 10`, so `result = 10`
+- Actual behavior: The implementation would compute `result = 10`, which is correct. However, Dafny cannot verify `GetFloorNonNeg` (the lemma has an empty body and Dafny cannot automatically prove `GetFloor(apt, m, k) >= 0` for nonlinear arithmetic involving `m * k`), causing a cascade: the `MinTravelTimeNonNeg` call requires `floors >= 0`, which depends on `GetFloorNonNeg`, and the overall postcondition `result >= 0` cannot be established.
+- Why it fails: The `GetFloorNonNeg` lemma has an empty body, so Dafny cannot prove its postcondition `GetFloor(apt, m, k) >= 0` due to nonlinear arithmetic involving `(apt-1) / (m*k)` and subsequent division by `k`. Without this lemma, Dafny cannot confirm that `MinTravelTime` preconditions are met or that `result >= 0`, causing the timeout in `solve`.

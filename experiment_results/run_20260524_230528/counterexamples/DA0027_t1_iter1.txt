@@ -1,0 +1,13 @@
+
+
+COUNTEREXAMPLE:
+
+- Input: `s = "0 0 0 0\n0 0 0 0\n0 0 0 0\n0 0 0 0\n"`
+- Expected output: `result == "NO\n"` with a valid `input_lines` witness satisfying `ParseInput`
+- Actual behavior: The verification fails for two reasons:
+
+**Error 1 (decreases clause at line 80):** Consider `s = "0000000"` (length 7, no spaces or newlines but all valid chars — actually this wouldn't satisfy `ContainsFourLines`). More concretely, with `s = "0 0 0 0\n0 0 0 0\n0 0 0 0\n0 0 0 0\n"`, the outer while loop has decreases `|s| - pos + (4 - lineCount)`. When the inner while finishes (say `intCount == 4`), `pos` may have advanced, but then `lineCount` increases by 1. However, if the inner loop exits because `pos == |s|` while `intCount < 4`, the line gets padded, `lineCount` increases, but `pos` stays at `|s|`. On the next outer iteration, `|s| - pos` is 0, `(4 - lineCount)` decreased by 1, so the total decreases by 1. But Dafny can't prove this because the inner loop may not decrease `|s| - pos + (4 - intCount)` either — when `pos` advances but `intCount` doesn't (on a space/newline character), the sum `|s| - pos + (4 - intCount)` decreases, which is fine. The real issue is the **outer** loop: after the inner loop runs, `pos` increased and `lineCount` increased, but Dafny cannot verify that the combined expression strictly decreases because `pos` changes unpredictably inside the inner loop.
+
+**Error 2 (loop invariant at line 131):** With input `s = "1 0 0 1\n0 0 0 0\n0 0 0 0\n0 0 0 0\n"`, `lines[0] = [1,0,0,1]`. At `i=0`, `AccidentAtLane(0, lines)` is true (since `lanes[0][3]==1 && lanes[0][0]==1`), so `accident` becomes `true`. After `i` increments to 1, the invariant requires `accident <==> exists k :: 0 <= k < 1 && AccidentAtLane(k, lines)`. Dafny cannot automatically prove the `<==` direction — that the computed boolean `atLane` matches `AccidentAtLane(i, lines)` — because `AccidentAtLane` is an opaque predicate with preconditions, and Dafny needs an explicit assertion that the inline boolean expression equals `AccidentAtLane(i, lines)` before updating `accident`.
+
+- Why it fails: The loop invariant at line 131 cannot be maintained because Dafny cannot automatically equate the inline boolean expression `atLane` with the predicate `AccidentAtLane(i, lines)`, so it can't prove that setting `accident := true` when `atLane` is true correctly witnesses `exists k :: 0 <= k < i && AccidentAtLane(k, lines)`. An `assert atLane == AccidentAtLane(i, lines);` is needed before the update.

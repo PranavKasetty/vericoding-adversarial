@@ -1,76 +1,115 @@
-# A Benchmark For Vericoding: Formally Verified Program Synthesis
+# Adversarial CEGIS for Formally Verified Code Synthesis
 
-Our paper (currently undergoing review) can be found on [ArXiv](https://www.arxiv.org/abs/2509.22908).
+This repository contains the experimental framework and results for **"Does Oracle Quality Matter? Adversarial Feedback for Formally Verified Code Synthesis,"** submitted to the Apart Research Secure Program Synthesis hackathon (May 2026).
 
-Our scripts can be found in this [GitHub repo](https://github.com/beneficial-AI-Foundation/vericoding).
+The work extends the [Vericoding benchmark](https://www.arxiv.org/abs/2509.22908) (Bursuc et al., 2025) by adding an adversarial LLM oracle to the CEGIS repair loop and measuring its effect on pass rates and convergence speed.
 
-The `vericoding_benchmark_v1.csv` provides a list of Vericoding IDs, sources and the source IDs for all 12,504 tasks. It also contains additional metadata from our quality analysis.
+## Headline Results
 
-The file `vericoding_results_v1.csv` which is a list of the outcomes of all 55,397 experiments involving vericoding tasks across different models.
+- **Pass@5** (50 Dafny APPStest tasks, 1 trial): Condition A (verifier only) = 43/50 (86%), Condition B (verifier + Sonnet oracle) = 42/50 (84%).
+- **Pass@2 advantage for B**: +6% (66% vs 72%).
+- **Opus oracle uplift**: a previously unsolvable task (DA0014) passes when the oracle is upgraded from Sonnet to Opus, due to qualitatively different feedback (specific proof-engineering guidance vs symptom descriptions).
 
-## Specs
+Full writeup: [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md).
 
-The folder `specs` contains all 12,504 tasks in Dafny, Lean and Verus, which includes the following.
+## Figures
 
-* Files which compile, up to some `sorry` or `assume false` in the code. The file is decomposed into different components, such as the preamble, the spec, the code and the postamble.
+![Pass@k curves](figure1_pass_at_k.png)
 
-* Files which do not compile, especially after translation from another langauge. We keep them in the benchmark for researchers who want use them for other experiments, e.g. spec repair.
+*Figure 1: Cumulative pass rate by iteration budget. Condition B leads Condition A at k=2,3,4.*
 
-## JSONL
+![Iteration comparison](figure2_iteration_comparison.png)
 
-The folder `jsonl` contains the tasks and issues sorted into the different languages, parsed into different components, and stored as JSON lines for easier experimentation. It also contains natural language descriptions for some of the tasks, which are not contained in the files in the `specs` folder.
+*Figure 2: Tasks where the two conditions differ by 2 or more iterations.*
 
-## Vericoded
+![Opus vs Sonnet oracle](figure3_opus_comparison.png)
 
-The folder `vericoded` will contain some of the tasks with solutions filled in by an AI vericoder.
+*Figure 3: Sonnet oracle vs Opus oracle on 17 hard tasks. DA0014 is newly solved with Opus.*
 
-## Handcoded
+## Repository Layout
 
-The folder `handcoded` will contain some of the tasks with solutions filled in by human coders.
+```
+run_experiment.py          # CEGIS loop with optional adversarial oracle
+analysis.py                # Summary statistics, pass@k, Wilcoxon test
+generate_figures.py        # Produces the three figures above
+SUBMISSION_DRAFT.md        # Hackathon report
+WRITEUP_RESULTS.md         # Earlier results notes
+metrics.md                 # Metric definitions
+requirements.txt           # Python dependencies
+experiment_results/        # Raw run outputs and merged CSV
+  merged_results.csv       # Consolidated 50-task baseline
+  run_20260524_194452/     # Conditions A and B (Sonnet oracle) baseline
+  run_20260524_230528/     # Opus oracle run on 17 hard tasks
+  run_20260525_161638/     # DA0008/DA0019 rerun
+vericoding/                # Upstream benchmark (submodule)
+specs/                     # Dafny/Lean/Verus task specifications
+```
 
-## Original Sources
+## Reproducing the Results
 
-### DafnyBench
-* `benchmarks/dafny/dafnybench`
-* https://github.com/sun-wendy/DafnyBench
+### Setup
 
-### NumPyTriple
-* `benchmarks/lean/numpy_triple`
-* Derived from NumPy documentation
-* Specs in new Hoare triple format
+```bash
+pip install -r requirements.txt
+# Ensure Dafny is installed and on PATH
+export ANTHROPIC_API_KEY=your_key_here
+```
 
-### NumPySimple
-* `benchmarks/lean/numpy_simple`
-* Derived from NumPy documentation
-* Specs in classical Lean format
+### Baseline experiment (Condition A and B)
 
-### Verina
-* `benchmarks/lean/verina`
-* https://github.com/sunblaze-ucb/verina
+```bash
+# Condition A: verifier-only feedback
+python run_experiment.py --condition A --trials 1
 
-### APPS
-* `benchmarks/dafny/apps`
-* https://github.com/hendrycks/apps
+# Condition B: verifier + adversarial Sonnet oracle
+python run_experiment.py --condition B --trials 1
+```
 
-### FVAPPS
-* `benchmarks/lean/fvapps`
-* https://huggingface.co/datasets/quinn-dougherty/fvapps
+By default the script runs on the 50-task subset DA0000-DA0049.
 
-### VerifiedCogen
-* `benchmarks/verus/verified_cogen`
-* https://github.com/JetBrains-Research/verified-cogen
+### Opus oracle experiment
 
-### BigNum
-* `benchmarks/dafny/bignum`
-* Written from scratch
+```bash
+python run_experiment.py \
+  --tasks DA0003 DA0006 DA0007 DA0009 DA0012 DA0013 DA0014 DA0016 \
+          DA0023 DA0024 DA0027 DA0028 DA0034 DA0035 DA0037 DA0038 DA0043 \
+  --condition B \
+  --oracle-model claude-opus-4-6 \
+  --trials 1
+```
 
-### HumanEval, Clever
-* `benchmarks/dafny/humaneval`
-* `benchmarks/lean/clever`
-* https://github.com/openai/human-eval
-* https://github.com/JetBrains-Research/HumanEval-Dafny
-* https://github.com/trishullab/clever
+### Analysis and figures
 
-The Dafny files were mostly translated from the original Python source. Some of the Dafny files were taken from Jetbrains Research's HumanEval Dafny repo.
+```bash
+python analysis.py            # prints summary tables to stdout
+python generate_figures.py    # writes figure1, figure2, figure3 (PNG + PDF)
+```
 
-The Lean files were taken from the Clever benchmark which were originally derived from the HumanEval benchmark. HumanEval problems 22, 137, 162 are missing from Clever for reasons mentioned in the Clever paper.
+## Experimental Setup
+
+| Component | Value |
+|-----------|-------|
+| Generator | Claude Sonnet 4.6 (`claude-sonnet-4-6`) |
+| Default oracle | Claude Sonnet 4.6 |
+| Stronger oracle (DA0014 case study) | Claude Opus 4.6 (`claude-opus-4-6`) |
+| Dafny verification timeout | 120 s |
+| Max repair iterations | 5 |
+| Tasks | 50 Dafny APPStest tasks (DA0000-DA0049) |
+| Trials | 1 per task-condition |
+
+## Citation
+
+If you build on this work, please cite the underlying benchmark:
+
+```bibtex
+@article{bursuc2025vericoding,
+  title={A Benchmark for Vericoding: Formally Verified Program Synthesis},
+  author={Bursuc, Sergiu and others},
+  journal={arXiv preprint arXiv:2509.22908},
+  year={2025}
+}
+```
+
+## Upstream Benchmark
+
+The `vericoding/` submodule and `specs/` directory come from the original Vericoding benchmark. See [the upstream repository](https://github.com/Beneficial-AI-Foundation/vericoding) for benchmark documentation, the full 12,504 task set across Dafny/Lean/Verus, and the original CEGIS framework.

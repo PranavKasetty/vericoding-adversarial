@@ -1,0 +1,5 @@
+COUNTEREXAMPLE:
+- Input: n = 3, k = 2
+- Expected output: result = 300 (the smallest positive multiple of both 3 and 100)
+- Actual behavior: The program fails to compile due to a resolution/type error at line 189 in the `BezoutLemma` lemma. The call `BezoutHelper(p, q)` returns 2 values (`s` and `t`) but the return values are not captured. The line should be `var s, t := BezoutHelper(p, q);` instead of just `BezoutHelper(p, q);`.
+- Why it fails: This is a compilation error, not a runtime counterexample. The `BezoutHelper` method returns two `int` values (`s` and `t`), but `BezoutLemma` at line 189 calls it without assigning those return values, violating Dafny's requirement that all return values from a method/lemma call must be captured. This prevents the entire program from compiling, so `solve` can never execute for any input.

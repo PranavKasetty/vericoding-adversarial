@@ -1,0 +1,24 @@
+Looking at the verification error, the issue is in the `FloorDivMonotone` lemma, specifically in the branch where both `x < 0` and `y < 0`. The lemma body for this case doesn't provide sufficient proof that `(x - k + 1) / k <= (y - k + 1) / k` when both are negative.
+
+Let me trace through a concrete example to understand the proof gap:
+
+**COUNTEREXAMPLE:**
+- Input: `x = -5, y = -2, k = 3` (as called from the lemma, not the `solve` method directly)
+- For the `solve` method, this corresponds to: `k = 3, a = -1, b = -2` — but wait, that violates `a <= b`.
+
+Let me find a valid `solve` call that triggers this branch. We need `a - 1 < 0` and `b < 0`, so `a <= 0` and `b < 0`, with `a <= b`.
+
+- Input to `solve`: `k = 3, a = -4, b = -1`
+- This calls `FloorDivMonotone(a-1, b, k)` = `FloorDivMonotone(-5, -1, 3)`
+- But `y = -1 < 0` is false... wait, `-1 < 0` IS true. So we're in the both-negative branch.
+- `FloorDiv(-5, 3) = (-5 - 3 + 1) / 3 = (-7) / 3`. In Dafny Euclidean division: `-7 = (-3)*3 + 2`, so `-7/3 = -3`.
+- `FloorDiv(-1, 3) = (-1 - 3 + 1) / 3 = (-3) / 3 = -1`.
+- We need `-3 <= -1` ✓ — this is actually true, but Dafny can't prove it automatically.
+
+The issue is that the proof body for the both-negative case simply asserts `xn <= yn` but doesn't provide the necessary reasoning for Dafny to conclude `xn / k <= yn / k`.
+
+**COUNTEREXAMPLE:**
+- Input: `k = 3, a = -4, b = -1` (to `solve` method)
+- Expected output: `result = CountDivisiblesInRange(3, -4, -1) = FloorDiv(-1, 3) - FloorDiv(-5, 3) = -1 - (-3) = 2`
+- Actual behavior: The implementation would compute `result = 2` correctly, but Dafny cannot verify the `FloorDivMonotone(-5, -1, 3)` lemma call because the both-negative branch (`x = -5, y = -1, k = 3`) lacks sufficient proof that `(-7)/3 <= (-3)/3` (i.e., `-3 <= -1`). The lemma's postcondition `FloorDiv(x, k) <= FloorDiv(y, k)` is unproven.
+- Why it fails: The both-negative branch of `FloorDivMonotone` only asserts `xn <= yn` but doesn't prove that Dafny's Euclidean integer division preserves monotonicity for negative numerators, so the postcondition `FloorDiv(x, k) <= FloorDiv(y, k)` cannot be verified.

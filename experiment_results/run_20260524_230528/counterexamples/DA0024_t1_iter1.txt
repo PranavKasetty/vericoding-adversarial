@@ -1,0 +1,16 @@
+Looking at the verification errors, the core issues are:
+
+1. **Division by zero in `gcd`/`lcm`**: The `gcd` function requires `a > 0 && b >= 0`, but Dafny can't prove `gcd(a,b) > 0` at all use sites, meaning `lcm` could divide by zero.
+
+2. **The `LcmDividesResult` lemma has a flawed proof**: The assertion chain contains non-sequiturs. Specifically, `assert factor % bg == 0 by { assert factor * ag == kb * bg; }` — knowing `factor * ag == kb * bg` does NOT imply `factor % bg == 0` (it would require `gcd(ag, bg) == 1`, which isn't established).
+
+Let me find a concrete counterexample where the `LcmDividesResult` proof logic breaks down:
+
+COUNTEREXAMPLE:
+- Input: `n = 4`, `k = 2` (so `power(10, 2) = 100`)
+- Expected output: `result = 100` (the smallest positive multiple of both 4 and 100 is `lcm(4, 100) = 100`)
+- Actual behavior: The implementation computes `gcd(4, 100)`. Following the recursion: `gcd(4, 100) → gcd(100, 4) → gcd(4, 0) = 4`. Wait — actually `gcd` requires `a > 0 && b >= 0` with the first argument positive. `gcd(4, 100)`: since `b=100 ≠ 0`, it calls `gcd(100, 4 % 100) = gcd(100, 4)`, then `gcd(4, 0) = 4`. So `g = 4`, `l = 4*100/4 = 100`. The result would be 100, which is correct. However, Dafny **cannot verify** the code because:
+  1. The `lcm` function has no precondition ensuring `gcd(a,b) > 0`, so Dafny flags a possible division by zero at `a * b / gcd(a, b)`.
+  2. The `GcdDividesA` lemma times out — its proof that `a % gcd(a,b) == 0` is incomplete (the inductive step asserts facts but doesn't connect them).
+  3. Inside `LcmDividesResult`, the assertion `factor % bg == 0` from `factor * ag == kb * bg` is **not valid in general** without proving `gcd(ag, bg) == 1`. For example, with `a=4, b=100`: `ag = 4/4 = 1`, `bg = 100/4 = 25`, and it happens to work, but Dafny can't verify the general claim.
+- Why it fails: The helper lemmas have missing preconditions (no `ensures gcd(a,b) > 0` propagated to prevent division-by-zero in `lcm`), and the `LcmDividesResult` proof relies on the unjustified assertion that `factor % bg == 0` follows from `factor * ag == kb * bg`, which requires the unproven fact that `gcd(ag, bg) == 1` after dividing by the GCD.

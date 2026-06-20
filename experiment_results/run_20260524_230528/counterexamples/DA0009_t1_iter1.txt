@@ -1,0 +1,14 @@
+COUNTEREXAMPLE:
+
+This is not a logical counterexample but a **compilation failure** — the implementation cannot be verified or compiled because it depends on undefined helper functions and predicates.
+
+- Input: Any valid input, e.g., the string `"1 1 10\n3\n5\n"` (n=1, m=1, r=10, S=[3], B=[5])
+- Expected output: The program should compute `ComputeMaxBourles(10, [3], [5])` = max(10, (10 % 3) + (10 / 3) * 5) = max(10, 1 + 15) = max(10, 16) = 16, so result = `"16\n"`
+- Actual behavior: The program **fails to compile** because the following identifiers are unresolved:
+  - `SplitLinesFunc` — used in `ValidInput` and `ParseInput` but never defined
+  - `SplitIntsFunc` — used in `ValidInput` and `ParseInput` but never defined
+  - `ValidIntLine` — used in `ValidInput` but never defined
+  - `MinSeqFunc` — used in `ComputeMaxBourles` but never defined
+  - `MaxSeqFunc` — used in `ComputeMaxBourles` but never defined
+  - `IntToStringFunc` — used in the postcondition and the method body but never defined
+- Why it fails: The `// <vc-helpers>` section is empty, so none of the helper functions (`SplitLinesFunc`, `SplitIntsFunc`, `ValidIntLine`, `MinSeqFunc`, `MaxSeqFunc`, `IntToStringFunc`) referenced throughout the preamble, specification, and implementation are defined. The file cannot pass Dafny's resolution phase, causing all 40 reported errors.
