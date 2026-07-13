@@ -1,7 +1,5 @@
 # Notes on Adding an LLM Oracle to a Dafny Repair Loop
 
-*Draft — feedback welcome. Written with AI assistance (Claude); experiments, predictions, and content are mine.*
-
 **One-line summary.** I added a second LLM as an "adversarial counterexample" oracle to a CEGIS-style repair loop for Dafny code generation. The aggregate result on 50 tasks is underpowered and I can't distinguish it from noise. The interesting observation is qualitative: on one task that had failed under every prior configuration, upgrading the oracle from Sonnet to Opus produced a completion that named a specific missing lemma call, and the task then passed. I think the useful reframe is that the second oracle is doing proof-debugging, not counterexample generation — but that's a single case study, and the rest of this post is about how much weight it deserves.
 
 **Epistemic status.** One trial per (task, condition). 50 Dafny tasks total; 17 in the Opus-oracle subset; n=1 for the case study I lead with. The aggregate CEGIS-with-oracle-vs-verifier-only comparison is a Wilcoxon signed-rank p=0.21 — I can't distinguish it from sampling noise, and treat it that way throughout. Predictions in this post come with probability estimates because they should be checkable.
