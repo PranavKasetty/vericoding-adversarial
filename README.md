@@ -6,11 +6,17 @@ The work extends the [Vericoding benchmark](https://www.arxiv.org/abs/2509.22908
 
 ## Headline Results
 
-- **Pass@5** (50 Dafny APPStest tasks, 1 trial): Condition A (verifier only) = 43/50 (86%), Condition B (verifier + Sonnet oracle) = 42/50 (84%).
-- **Pass@2 advantage for B**: +6% (66% vs 72%).
-- **Opus oracle uplift**: a previously unsolvable task (DA0014) passes when the oracle is upgraded from Sonnet to Opus, due to qualitatively different feedback (specific proof-engineering guidance vs symptom descriptions).
+| Setup (50 Dafny APPStest tasks, generator = Sonnet 4.6, 1 trial) | pass@1 | pass@2 | pass@5 |
+|---|---|---|---|
+| Condition A — verifier-only feedback | 48% | 66% | **86%** (43/50) |
+| Condition B — verifier + Sonnet oracle | 48% | **72%** | 84% (42/50) |
+| Condition B — verifier + Opus oracle (17 hardest tasks only) | — | — | +1 net-new task (DA0014) unlocked |
 
-Full writeup: [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md).
+**One-line takeaway:** same-tier oracle gives a small non-significant pass@2 bump (Wilcoxon p=0.21); a stronger oracle unlocks a task that failed under every other configuration by naming the specific missing lemma call, suggesting the useful oracle is a proof-debugging assistant rather than a counterexample generator.
+
+- Blog post (LessWrong-style, reframed around reviewer feedback): [`BLOG_POST.md`](BLOG_POST.md)
+- Hackathon submission draft: [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md)
+- Follow-up experiment plan: [`FUTURE_WORK.md`](FUTURE_WORK.md)
 
 ## Figures
 
