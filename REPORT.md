@@ -1,5 +1,4 @@
-# PROJECT TITLE
-**Does Oracle Quality Matter? Adversarial Feedback for Formally Verified Code Synthesis**
+# Does Oracle Quality Matter? Adversarial Feedback for Formally Verified Code Synthesis
 
 **Authors:** Pranav Kasetty
 
