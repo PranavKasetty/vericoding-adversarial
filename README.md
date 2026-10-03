@@ -29,8 +29,7 @@ DA0014 had failed under A, under B with Sonnet, and across reruns. It passed und
 
 ## Longer writeups
 
-- [`BLOG_POST.md`](BLOG_POST.md) — narrative post with the reframing, taxonomy of irreducible failures, and predictions with probabilities.
-- [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md) — Apart Research hackathon submission.
+- [`REPORT.md`](REPORT.md) — Apart Research hackathon report, including the taxonomy of irreducible failures.
 - [`FUTURE_WORK.md`](FUTURE_WORK.md) — planned follow-up experiments addressing each limitation above.
 
 ## Figures
@@ -70,8 +69,11 @@ experiment_results/
   run_20260524_194452/               # A and B (Sonnet oracle)
   run_20260524_230528/               # B-Opus on 17 hard tasks
   run_20260525_161638/               # DA0008/DA0019 rerun
-vericoding/, specs/                  # upstream benchmark
+REPORT.md, FUTURE_WORK.md            # report and follow-up plan
+metrics.md, Research_Plan.md         # metric definitions, original plan
 ```
+
+Inherited from the upstream benchmark (not part of this work): `handcoded/`, `inspection/`, `jsonl/`, `specs/`, `vericoded/`, `vericoding_benchmark_v1.csv`, `vericoding_results_v1.csv`, `LICENSE`. See [Beneficial-AI-Foundation/vericoding-benchmark](https://github.com/Beneficial-AI-Foundation/vericoding-benchmark). The `vericoding/` submodule is the upstream scripts repo.
 
 ## Upstream
 

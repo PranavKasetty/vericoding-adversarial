@@ -75,7 +75,7 @@ Follow-up experiments motivated by the hackathon submission and reviewer feedbac
 
 Run each with Sonnet oracle (same-tier) and Opus oracle. `n = 3` trials.
 
-**Analysis.** Direct comparison of pass rates and convergence. The prediction from the blog post is that V2 with Sonnet approaches V1 with Opus — i.e., the "oracle quality" effect is partly a "prompted-to-give-the-right-kind-of-advice" effect, and prompting recovers some of the gap. If V2-Sonnet ≈ V1-Opus, the cost story gets much better. If not, oracle capability really is the bottleneck.
+**Analysis.** Direct comparison of pass rates and convergence. My prediction is that V2 with Sonnet approaches V1 with Opus — i.e., the "oracle quality" effect is partly a "prompted-to-give-the-right-kind-of-advice" effect, and prompting recovers some of the gap. If V2-Sonnet ≈ V1-Opus, the cost story gets much better. If not, oracle capability really is the bottleneck.
 
 **Cost estimate.** ~$100 for the Sonnet variants, ~$300 for the Opus variants.
 
