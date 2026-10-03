@@ -1,0 +1,9 @@
+# Inherited from the upstream Vericoding benchmark; exclude from language stats
+specs/** linguist-vendored
+vericoded/** linguist-vendored
+handcoded/** linguist-vendored
+inspection/** linguist-vendored
+jsonl/** linguist-vendored
+
+# Model-generated Dafny and counterexamples from experiment runs
+experiment_results/** linguist-generated
