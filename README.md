@@ -1,121 +1,78 @@
-# Adversarial CEGIS for Formally Verified Code Synthesis
+# Adversarial LLM Oracle in a Dafny CEGIS Repair Loop
 
-This repository contains the experimental framework and results for **"Does Oracle Quality Matter? Adversarial Feedback for Formally Verified Code Synthesis,"** submitted to the Apart Research Secure Program Synthesis hackathon (May 2026).
+**Question.** When LLM-generated Dafny code fails to verify, the standard fix is a CEGIS loop: feed the verifier error back to the model and ask for a repair. Does adding a *second* LLM as an "adversarial counterexample" oracle to the repair prompt help, and does the oracle's model tier matter?
 
-The work extends the [Vericoding benchmark](https://www.arxiv.org/abs/2509.22908) (Bursuc et al., 2025) by adding an adversarial LLM oracle to the CEGIS repair loop and measuring its effect on pass rates and convergence speed.
+**Conditions.** Generator is Claude Sonnet 4.6. Tasks are 50 Dafny APPStest problems (DA0000–DA0049) from the [Vericoding benchmark](https://arxiv.org/abs/2509.22908). 120s verification timeout, up to 5 repair iterations, one trial per (task, condition).
 
-## Headline Results
+- **A.** Verifier-only feedback in the repair prompt.
+- **B.** Verifier + LLM oracle that produces a concrete counterexample (input values, which postcondition clause fails). Oracle = Sonnet 4.6.
+- **B-Opus.** Same as B, but the oracle is Opus 4.6. Run only on the 17 tasks that took >2 iterations under A.
 
-| Setup (50 Dafny APPStest tasks, generator = Sonnet 4.6, 1 trial) | pass@1 | pass@2 | pass@5 |
+**Result.**
+
+| | pass@1 | pass@2 | pass@5 |
 |---|---|---|---|
-| Condition A — verifier-only feedback | 48% | 66% | **86%** (43/50) |
-| Condition B — verifier + Sonnet oracle | 48% | **72%** | 84% (42/50) |
-| Condition B — verifier + Opus oracle (17 hardest tasks only) | — | — | +1 net-new task (DA0014) unlocked |
+| A | 48% | 66% | **86%** (43/50) |
+| B | 48% | **72%** | 84% (42/50) |
+| B-Opus (17 hard tasks only) | — | — | +1 net-new-passed task (DA0014) |
 
-**One-line takeaway:** same-tier oracle gives a small non-significant pass@2 bump (Wilcoxon p=0.21); a stronger oracle unlocks a task that failed under every other configuration by naming the specific missing lemma call, suggesting the useful oracle is a proof-debugging assistant rather than a counterexample generator.
+DA0014 had failed under A, under B with Sonnet, and across reruns. It passed under B-Opus because the oracle named a specific missing lemma call (`GcdDividesDenominator(a-b, b)` in the else branch of `GcdDividesNumerator`); the generator's next completion added exactly that call and the proof closed.
 
-- Blog post (LessWrong-style, reframed around reviewer feedback): [`BLOG_POST.md`](BLOG_POST.md)
-- Hackathon submission draft: [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md)
-- Follow-up experiment plan: [`FUTURE_WORK.md`](FUTURE_WORK.md)
+**The null.** The aggregate A-vs-B comparison is not evidence that the oracle helps on average. Wilcoxon signed-rank on iteration count over the 42 jointly-solved tasks: p = 0.21. The +6% pass@2 is compatible with sampling noise, and the −2 pass@5 gap is one JSON-parsing failure on DA0019, not oracle-induced regression. Single-trial evidence cannot separate DA0013's 5→1 speedup from DA0008's 1→4 slowdown — same evidential status.
+
+**Limitations.**
+
+- One trial per (task, condition). No statistical claim about the aggregate.
+- DA0014 is n=1. The "proof-engineering advice beats counterexample generation" reframe is a case study, not a demonstrated effect.
+- The 50-task subset runs at 86% baseline; the full 677-task Dafny APPStest set runs at 60–67%. My subset is easier than the benchmark.
+- No non-LLM counterexample baseline. I can't distinguish "any second feedback channel helps" from "LLM proof advice specifically helps."
+
+## Longer writeups
+
+- [`BLOG_POST.md`](BLOG_POST.md) — narrative post with the reframing, taxonomy of irreducible failures, and predictions with probabilities.
+- [`SUBMISSION_DRAFT.md`](SUBMISSION_DRAFT.md) — Apart Research hackathon submission.
+- [`FUTURE_WORK.md`](FUTURE_WORK.md) — planned follow-up experiments addressing each limitation above.
 
 ## Figures
 
-![Pass@k curves](figure1_pass_at_k.png)
+![Cumulative pass rate by iteration budget](figure1_pass_at_k.png)
+![Iteration comparison for tasks where A and B differ by ≥2](figure2_iteration_comparison.png)
+![Sonnet-oracle vs Opus-oracle on 17 hard tasks](figure3_opus_comparison.png)
 
-*Figure 1: Cumulative pass rate by iteration budget. Condition B leads Condition A at k=2,3,4.*
-
-![Iteration comparison](figure2_iteration_comparison.png)
-
-*Figure 2: Tasks where the two conditions differ by 2 or more iterations.*
-
-![Opus vs Sonnet oracle](figure3_opus_comparison.png)
-
-*Figure 3: Sonnet oracle vs Opus oracle on 17 hard tasks. DA0014 is newly solved with Opus.*
-
-## Repository Layout
-
-```
-run_experiment.py          # CEGIS loop with optional adversarial oracle
-analysis.py                # Summary statistics, pass@k, Wilcoxon test
-generate_figures.py        # Produces the three figures above
-SUBMISSION_DRAFT.md        # Hackathon report
-WRITEUP_RESULTS.md         # Earlier results notes
-metrics.md                 # Metric definitions
-requirements.txt           # Python dependencies
-experiment_results/        # Raw run outputs and merged CSV
-  merged_results.csv       # Consolidated 50-task baseline
-  run_20260524_194452/     # Conditions A and B (Sonnet oracle) baseline
-  run_20260524_230528/     # Opus oracle run on 17 hard tasks
-  run_20260525_161638/     # DA0008/DA0019 rerun
-vericoding/                # Upstream benchmark (submodule)
-specs/                     # Dafny/Lean/Verus task specifications
-```
-
-## Reproducing the Results
-
-### Setup
+## Reproducing
 
 ```bash
 pip install -r requirements.txt
-# Ensure Dafny is installed and on PATH
-export ANTHROPIC_API_KEY=your_key_here
-```
+# Ensure Dafny is on PATH
+export ANTHROPIC_API_KEY=...
 
-### Baseline experiment (Condition A and B)
-
-```bash
-# Condition A: verifier-only feedback
+# Baseline (Conditions A and B on DA0000-DA0049)
 python run_experiment.py --condition A --trials 1
-
-# Condition B: verifier + adversarial Sonnet oracle
 python run_experiment.py --condition B --trials 1
-```
 
-By default the script runs on the 50-task subset DA0000-DA0049.
-
-### Opus oracle experiment
-
-```bash
+# Opus oracle on the 17 hard tasks
 python run_experiment.py \
   --tasks DA0003 DA0006 DA0007 DA0009 DA0012 DA0013 DA0014 DA0016 \
           DA0023 DA0024 DA0027 DA0028 DA0034 DA0035 DA0037 DA0038 DA0043 \
-  --condition B \
-  --oracle-model claude-opus-4-6 \
-  --trials 1
+  --condition B --oracle-model claude-opus-4-6 --trials 1
+
+python analysis.py            # summary tables
+python generate_figures.py    # figures 1–3 (PNG + PDF)
 ```
 
-### Analysis and figures
+## Layout
 
-```bash
-python analysis.py            # prints summary tables to stdout
-python generate_figures.py    # writes figure1, figure2, figure3 (PNG + PDF)
+```
+run_experiment.py                    # CEGIS loop with optional oracle
+analysis.py, generate_figures.py     # analysis and plotting
+experiment_results/
+  merged_results.csv                 # consolidated 50-task baseline
+  run_20260524_194452/               # A and B (Sonnet oracle)
+  run_20260524_230528/               # B-Opus on 17 hard tasks
+  run_20260525_161638/               # DA0008/DA0019 rerun
+vericoding/, specs/                  # upstream benchmark
 ```
 
-## Experimental Setup
+## Upstream
 
-| Component | Value |
-|-----------|-------|
-| Generator | Claude Sonnet 4.6 (`claude-sonnet-4-6`) |
-| Default oracle | Claude Sonnet 4.6 |
-| Stronger oracle (DA0014 case study) | Claude Opus 4.6 (`claude-opus-4-6`) |
-| Dafny verification timeout | 120 s |
-| Max repair iterations | 5 |
-| Tasks | 50 Dafny APPStest tasks (DA0000-DA0049) |
-| Trials | 1 per task-condition |
-
-## Citation
-
-If you build on this work, please cite the underlying benchmark:
-
-```bibtex
-@article{bursuc2025vericoding,
-  title={A Benchmark for Vericoding: Formally Verified Program Synthesis},
-  author={Bursuc, Sergiu and others},
-  journal={arXiv preprint arXiv:2509.22908},
-  year={2025}
-}
-```
-
-## Upstream Benchmark
-
-The `vericoding/` submodule and `specs/` directory come from the original Vericoding benchmark. See [the upstream repository](https://github.com/Beneficial-AI-Foundation/vericoding) for benchmark documentation, the full 12,504 task set across Dafny/Lean/Verus, and the original CEGIS framework.
+The `vericoding/` submodule and `specs/` directory are from the [Vericoding benchmark](https://github.com/Beneficial-AI-Foundation/vericoding) (Bursuc et al., 2025, [arXiv:2509.22908](https://arxiv.org/abs/2509.22908)) — 12,504 tasks across Dafny, Lean, and Verus. Cite that paper if you build on this work.
