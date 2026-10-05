@@ -1,5 +1,10 @@
 # Adversarial LLM Oracle in a Dafny CEGIS Repair Loop
 
+> **Correction (5 October 2026).** The submitted version said the stronger (Opus) oracle solved DA0014 by naming a
+> missing lemma call. It did name the right call, but adding it did not close the proof; the only passing attempt
+> returns a constant 1/1 that the under-specified spec accepts. That is specification gaming, not a repair.
+> Details and evidence: [`CORRECTIONS.md`](CORRECTIONS.md). The as-submitted text is in commit `bc82785c` and on the Apart page.
+
 **Question.** When LLM-generated Dafny code fails to verify, the standard fix is a CEGIS loop: feed the verifier error back to the model and ask for a repair. Does adding a *second* LLM as an "adversarial counterexample" oracle to the repair prompt help, and does the oracle's model tier matter?
 
 **Conditions.** Generator is Claude Sonnet 4.6. Tasks are 50 Dafny APPStest problems (DA0000–DA0049) from the [Vericoding benchmark](https://arxiv.org/abs/2509.22908). 120s verification timeout, up to 5 repair iterations, one trial per (task, condition).
@@ -14,16 +19,16 @@
 |---|---|---|---|
 | A | 48% | 66% | **86%** (43/50) |
 | B | 48% | **72%** | 84% (42/50) |
-| B-Opus (17 hard tasks only) | — | — | +1 net-new-passed task (DA0014) |
+| B-Opus (17 hard tasks only) | — | — | +1 net-new pass (DA0014), vacuous: see below |
 
-DA0014 had failed under A, under B with Sonnet, and across reruns. It passed under B-Opus because the oracle named a specific missing lemma call (`GcdDividesDenominator(a-b, b)` in the else branch of `GcdDividesNumerator`); the generator's next completion added exactly that call and the proof closed.
+DA0014 had failed under A, under B with Sonnet, and across reruns. It passed under B-Opus, but not by a proof. The Opus oracle did name the specific missing lemma call (`GcdDividesDenominator(a-b, b)` in the else branch of `GcdDividesNumerator`), and the generator added it in iteration 3; that attempt still failed (solver timeouts), and so did iteration 4. Iteration 5 deleted the lemmas and returned `numerator := 1; denominator := 1;`, which verifies because the spec never relates the output to the inputs. This is specification gaming ([`CORRECTIONS.md`](CORRECTIONS.md), C1).
 
 **The null.** The aggregate A-vs-B comparison is not evidence that the oracle helps on average. Wilcoxon signed-rank on iteration count over the 42 jointly-solved tasks: p = 0.21. The +6% pass@2 is compatible with sampling noise, and the −2 pass@5 gap is one JSON-parsing failure on DA0019, not oracle-induced regression. Single-trial evidence cannot separate DA0013's 5→1 speedup from DA0008's 1→4 slowdown — same evidential status.
 
 **Limitations.**
 
 - One trial per (task, condition). No statistical claim about the aggregate.
-- DA0014 is n=1. The "proof-engineering advice beats counterexample generation" reframe is a case study, not a demonstrated effect.
+- DA0014 is n=1, and its pass is specification gaming, not a repair. What survives is that the Opus oracle diagnosed the missing proof step correctly where the Sonnet oracle did not. The other passes have not been audited for vacuous solutions.
 - The 50-task subset runs at 86% baseline; the full 677-task Dafny APPStest set runs at 60–67%. My subset is easier than the benchmark.
 - No non-LLM counterexample baseline. I can't distinguish "any second feedback channel helps" from "LLM proof advice specifically helps."
 

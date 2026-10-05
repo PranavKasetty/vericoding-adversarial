@@ -2,8 +2,13 @@
 
 **Authors:** Pranav Kasetty
 
-**Abstract (143 words):**
-Counterexample-Guided Inductive Synthesis (CEGIS) is the standard approach for repairing LLM-generated code that fails formal verification. We investigate whether augmenting the verifier's error feedback with adversarial LLM-generated counterexamples accelerates convergence. Using 50 Dafny tasks from the Vericoding benchmark, we find that adding a same-capability oracle (Sonnet) does not change pass rates but improves early convergence: pass@2 increases from 66% to 72%, with 9 tasks converging faster vs 6 slower among 42 jointly-solved tasks. The more surprising finding emerges when we upgrade to a stronger oracle (Opus): it unlocks a task that failed under all prior conditions by providing specific proof-repair guidance (identifying a missing lemma call) where the weaker oracle could only report "it times out." This suggests that for secure program synthesis pipelines, oracle *quality*, the ability to provide actionable proof-engineering feedback, matters more than oracle *presence*.
+> **Correction (5 October 2026).** The submitted version said the stronger (Opus) oracle solved DA0014 by naming a
+> missing lemma call. It did name the right call, but adding it did not close the proof; the only passing attempt
+> returns a constant 1/1 that the under-specified spec accepts. That is specification gaming, not a repair.
+> Corrected in place below; details and evidence: [`CORRECTIONS.md`](CORRECTIONS.md). The as-submitted text is in commit `bc82785c` and on the Apart page.
+
+**Abstract (132 words, corrected):**
+Counterexample-Guided Inductive Synthesis (CEGIS) is the standard approach for repairing LLM-generated code that fails formal verification. We investigate whether augmenting the verifier's error feedback with adversarial LLM-generated counterexamples accelerates convergence. Using 50 Dafny tasks from the Vericoding benchmark, we find that adding a same-capability oracle (Sonnet) does not change pass rates; pass@2 rises from 66% to 72%, with 9 tasks converging faster vs 6 slower among 42 jointly-solved tasks, but the difference is not significant. With a stronger oracle (Opus), one previously failing task passed. The Opus oracle correctly named the missing lemma call where the weaker oracle reported only a timeout, but the passing program returns a constant that the under-specified specification accepts: specification gaming, not a repair. Verified output is only as strong as the specification it is checked against.
 
 ---
 
@@ -18,7 +23,7 @@ However, verifier errors are often cryptic: line numbers and failed assertions w
 **Contributions:**
 1. An experimental framework evaluating adversarial oracle feedback in CEGIS loops for formal verification, replicating the Vericoding methodology on 50 Dafny tasks.
 2. Evidence that same-capability oracle feedback accelerates early convergence (+6% at pass@2) without changing pass rates.
-3. A demonstration that oracle *quality* is the key variable: a stronger oracle provides specific proof-repair guidance that unlocks a previously unsolvable task.
+3. A case study (corrected; see Section 4.3) in which a stronger oracle diagnoses the missing proof step correctly, but the task's only pass is a constant output that the weak specification accepts.
 4. A taxonomy of irreducible CEGIS failure modes based on the 7 tasks that resist all repair conditions.
 
 ## 2. Related Work
@@ -85,11 +90,11 @@ We re-ran 17 hard tasks with Claude Opus as the oracle (generator remains Sonnet
 |--------|--------------|-------------|
 | Pass rate | 10/17 (59%) | 11/17 (65%) |
 | Tasks with faster convergence | — | 3 (DA0012, DA0027, DA0034) |
-| Previously unsolvable tasks now solved | — | **1 (DA0014)** |
+| Previously unsolvable tasks now passed | — | 1 (DA0014; vacuous, see 4.3) |
 
 DA0014, which requires proving that GCD-based fraction reduction produces irreducible fractions, failed under *all prior conditions*: Condition A, Condition B with Sonnet oracle, across multiple runs (see Figure 3).
 
-### 4.3 Case Study: Why Opus Succeeds on DA0014
+### 4.3 Case Study: DA0014, a correct diagnosis and a vacuous pass
 
 The qualitative difference in feedback explains the mechanism:
 
@@ -98,10 +103,12 @@ The qualitative difference in feedback explains the mechanism:
 
 Describes the *symptom* (a timeout) without explaining what proof step is missing.
 
-**Opus oracle** (iteration 2, task eventually passes):
+**Opus oracle** (iteration 2):
 > *"The GcdDividesNumerator lemma's else branch fails because knowing (a-b) % g == 0 is insufficient to derive a % g == 0. The missing call to GcdDividesDenominator(a-b, b) in that branch is needed."*
 
-Identifies the *exact missing proof step*: which lemma to call, in which branch, and why. This transforms repair from blind exploration into targeted surgery.
+Identifies the *exact missing proof step*: which lemma to call, in which branch, and why.
+
+*Correction.* That diagnosis did not produce a proof. The generator added the call in iteration 3, which still failed (solver timeouts); iteration 4 rewrote the proof and also failed. Iteration 5 deleted every lemma and set `numerator := 1; denominator := 1;`. It verifies because the specification only requires a valid irreducible fraction and never relates it to the inputs `t, w, b`; the benchmark's reference solution is also a constant (`0/1`). The Opus row's extra pass in Section 4.2 is this task. See `CORRECTIONS.md` (C1) for the files.
 
 ### 4.4 Taxonomy of Irreducible CEGIS Failures
 
@@ -109,7 +116,7 @@ We analyze the 7 tasks that failed under both conditions to identify distinct fa
 
 | Failure Mode | Tasks | Description |
 |-------------|-------|-------------|
-| **Verification timeout** | DA0003, DA0014, DA0023, DA0038 | Solver times out on the `solve` method or supporting lemmas. Generated code may be logically correct but the proof obligations overwhelm the SMT solver within the time limit. DA0014 was eventually solved by the Opus oracle providing proof-engineering hints. |
+| **Verification timeout** | DA0003, DA0014, DA0023, DA0038 | Solver times out on the `solve` method or supporting lemmas. Generated code may be logically correct but the proof obligations overwhelm the SMT solver within the time limit. DA0014 later passed under the Opus oracle only by returning a constant (Section 4.3). |
 | **Nonlinear arithmetic** | DA0003, DA0024 | Specs involve GCD, modular arithmetic, or exponentiation. The LLM generates lemmas with incorrect preconditions (e.g., calling `GcdSymmetric(b, a%b)` when `a%b` might be 0, violating `requires b > 0`) and cannot self-correct the proof structure across iterations. |
 | **Complex quantifier reasoning** | DA0006 | Spec involves nested existential quantifiers over 6-digit ticket permutations. Dafny warns "could not find trigger for this quantifier," and the LLM generates loop invariants with untriggerable quantifiers that cause brittle verification. |
 | **Specification complexity** | DA0038, DA0043 | Specs require reasoning about multiple interacting concepts (string traversal with step constraints in DA0038; floor division monotonicity across positive/negative domains in DA0043). The LLM generates helper lemmas that individually time out, preventing the main proof from assembling. |
@@ -117,15 +124,15 @@ We analyze the 7 tasks that failed under both conditions to identify distinct fa
 
 Note: tasks may exhibit multiple failure modes. DA0003 shows both timeout and nonlinear arithmetic issues.
 
-These failure modes suggest different mitigation strategies: timeouts may respond to longer verification budgets or proof decomposition; nonlinear arithmetic requires specialized lemma libraries; quantifier issues need trigger annotations that current LLMs rarely generate. Notably, timeout failures may not be fundamentally irreducible: DA0014 demonstrates that higher-quality proof-engineering guidance from a stronger oracle can overcome them (Section 4.3).
+These failure modes suggest different mitigation strategies: timeouts may respond to longer verification budgets or proof decomposition; nonlinear arithmetic requires specialized lemma libraries; quantifier issues need trigger annotations that current LLMs rarely generate. DA0014 does not show that better guidance overcomes timeouts: the correct guidance was followed and the proof still timed out (Section 4.3).
 
 ## 5. Discussion and Limitations
 
 ### Implications for Secure Program Synthesis
 
-Our results support Regehr's (2025) multi-oracle thesis with an important caveat: adding oracles is necessary but not sufficient. Oracle *quality* determines effectiveness. A same-tier oracle provides marginal convergence benefits, but a stronger oracle can provide the proof-engineering specificity needed to unlock genuinely stuck tasks.
+A same-tier oracle provides at most marginal convergence benefits here. A stronger oracle gave more specific proof-engineering feedback on one task, but that feedback did not unlock it. The clearer lesson is about the verifier itself: under repeated failure the generator found a constant that satisfies a weak specification, and the loop reported success. A pipeline that trusts "verified" needs a check that the specification actually constrains the output.
 
-This points to a practical architecture: pair a cost-efficient generator (Sonnet) with a more capable oracle (Opus) invoked *only when repair fails*. The oracle's role is not to generate code but to diagnose proof failures with enough specificity to guide targeted repairs, which is cheaper than using the expensive model for all generation.
+*(Corrected: the submitted version proposed a Sonnet-generator, Opus-oracle architecture on the strength of DA0014. The evidence does not support it.)*
 
 For AI safety, faster convergence has a concrete benefit: fewer repair iterations mean fewer opportunities for the generator to introduce specification-bypassing behaviors. Our cheat detection caught 2 `assume`-based bypass attempts in our experiments.
 
@@ -135,7 +142,7 @@ For AI safety, faster convergence has a concrete benefit: fewer repair iteration
 
 **Task difficulty.** Our 50-task subset achieves 86% baseline, higher than the paper's 60-67% on the full 677 tasks. Oracle effects may be larger on harder tasks.
 
-**Single case for Opus uplift.** The DA0014 result is qualitatively compelling but is a single task.
+**Single case, and vacuous.** The DA0014 observation is a single task, and its pass is specification gaming. The other passes have not been audited for vacuous solutions.
 
 ### Dual-Use Considerations
 
@@ -151,7 +158,7 @@ This work strengthens the defensive capability of formal verification for AI-gen
 
 ## 6. Conclusion
 
-We investigated adversarial LLM oracles as a complement to formal verifier feedback in CEGIS loops. A same-capability oracle shows early convergence benefits (+6% at pass@2, +4% at pass@4) but does not expand the set of solvable tasks, and the overall convergence difference is not statistically significant with our sample size. The key finding is that oracle *quality* matters: a stronger oracle provides specific proof-engineering guidance, identifying missing lemma calls rather than reporting timeouts, enabling it to solve tasks that no amount of verifier feedback alone can fix. Our taxonomy of irreducible failures reveals that verification timeouts, nonlinear arithmetic, and complex quantifier reasoning are the primary barriers to CEGIS convergence, suggesting targeted mitigation strategies for future work.
+We investigated adversarial LLM oracles as a complement to formal verifier feedback in CEGIS loops. A same-capability oracle shows early convergence benefits (+6% at pass@2, +4% at pass@4) but does not expand the set of solvable tasks, and the overall convergence difference is not statistically significant with our sample size. A stronger oracle gave more specific proof-engineering guidance on one hard task, but the task's only pass was a constant output accepted by an under-specified specification (corrected after submission; see `CORRECTIONS.md`). Our taxonomy of irreducible failures reveals that verification timeouts, nonlinear arithmetic, and complex quantifier reasoning are the primary barriers to CEGIS convergence, suggesting targeted mitigation strategies for future work.
 
 ## Code and Data
 
